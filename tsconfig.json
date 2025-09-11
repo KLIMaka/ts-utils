@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "module": "esNext",
+    "target": "ESNext",
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable",
+    ],
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "moduleResolution": "bundler",
+    "baseUrl": "./src",
+    "allowSyntheticDefaultImports": true,
+  },
+  "include": [
+    "src"
+  ]
+}

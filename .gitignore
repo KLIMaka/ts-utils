@@ -10,4 +10,3 @@ package-lock.json
 resources/engines
 coverage
 target
-dist

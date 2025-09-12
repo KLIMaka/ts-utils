@@ -31,13 +31,13 @@ export declare class F32RGBAArrayRaster implements Raster<number> {
     constructor(width: number, height: number, pixels: Float32Array, mapper: Mapper);
     pixel(x: number, y: number): number;
 }
-export declare class TransformRaster<P, P1> implements Raster<P> {
+export declare class TransformRaster<S, D> implements Raster<D> {
     private src;
     private transform;
     readonly width: number;
     readonly height: number;
-    constructor(src: Raster<P1>, transform: (p: P1) => P);
-    pixel(x: number, y: number): P;
+    constructor(src: Raster<S>, transform: Function<S, D>);
+    pixel(x: number, y: number): D;
 }
 export declare class AxisSwapRaster<P> implements Raster<P> {
     private src;
@@ -90,7 +90,7 @@ export declare class SuperResizeRaster<P> implements Raster<P> {
 }
 export declare function array<P>(arr: ArrayLike<P>, w: number, h: number): Raster<P>;
 export declare function f32array(arr: Float32Array, w: number, h: number, mapper: Mapper): Raster<number>;
-export declare function transform<P, P1>(src: Raster<P>, transform: (p: P) => P1): Raster<P1>;
+export declare function transform<S, D>(src: Raster<S>, transform: Function<S, D>): Raster<D>;
 export declare function axisSwap<P>(src: Raster<P>): AxisSwapRaster<P>;
 export declare function rect<P>(src: Raster<P>, sx: number, sy: number, ex: number, ey: number, padd: P): Raster<P>;
 export declare function rectRepeat<P>(src: Raster<P>, sx: number, sy: number, ex: number, ey: number): Raster<P>;

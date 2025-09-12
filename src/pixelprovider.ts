@@ -73,10 +73,10 @@ export class F32RGBAArrayRaster implements Raster<number> {
   }
 }
 
-export class TransformRaster<P, P1> implements Raster<P> {
+export class TransformRaster<S, D> implements Raster<D> {
   readonly width: number;
   readonly height: number;
-  constructor(private src: Raster<P1>, private transform: (p: P1) => P) {
+  constructor(private src: Raster<S>, private transform: Function<S, D>) {
     this.width = src.width;
     this.height = src.height;
   }
@@ -200,7 +200,7 @@ export function f32array(arr: Float32Array, w: number, h: number, mapper: Mapper
   return new F32RGBAArrayRaster(w, h, arr, mapper);
 }
 
-export function transform<P, P1>(src: Raster<P>, transform: (p: P) => P1): Raster<P1> {
+export function transform<S, D>(src: Raster<S>, transform: Function<S, D>): Raster<D> {
   return new TransformRaster(src, transform);
 }
 

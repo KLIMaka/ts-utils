@@ -170,3 +170,8 @@ export function left<T, U>(value: T): Union<T, U> {
 export function right<T, U>(value: U): Union<T, U> {
   return { get: () => value, isLeft: () => false, left: () => { throw new Error() }, right: () => value }
 }
+
+export function notNull<T>(value: T | null): T {
+  if (value == null) throw new Error();
+  return value;
+}

@@ -94,4 +94,5 @@ export interface Union<T, U> {
 }
 export declare function left<T, U>(value: T): Union<T, U>;
 export declare function right<T, U>(value: U): Union<T, U>;
+export declare function notNull<T>(value: T | null): T;
 //# sourceMappingURL=types.d.ts.map

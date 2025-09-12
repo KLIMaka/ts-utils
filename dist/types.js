@@ -112,4 +112,9 @@ export function left(value) {
 export function right(value) {
     return { get: () => value, isLeft: () => false, left: () => { throw new Error(); }, right: () => value };
 }
+export function notNull(value) {
+    if (value == null)
+        throw new Error();
+    return value;
+}
 //# sourceMappingURL=types.js.map

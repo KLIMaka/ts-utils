@@ -113,7 +113,17 @@ export function right(value) {
     return { get: () => value, isLeft: () => false, left: () => { throw new Error(); }, right: () => value };
 }
 export function notNull(value) {
-    if (value == null)
+    if (value === null)
+        throw new Error();
+    return value;
+}
+export function notUndefined(value) {
+    if (value === undefined)
+        throw new Error();
+    return value;
+}
+export function notNullOrUndefined(value) {
+    if (value === undefined || value === null)
         throw new Error();
     return value;
 }

@@ -1,4 +1,4 @@
-import { Function } from 'types';
+import { Function } from './types';
 export interface Raster<P> {
     readonly width: number;
     readonly height: number;

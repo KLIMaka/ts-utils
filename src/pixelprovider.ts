@@ -1,4 +1,4 @@
-import { Function } from 'types';
+import { Function } from './types';
 import { clamp, cyclic, int } from './mathutils';
 
 export interface Raster<P> {

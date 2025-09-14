@@ -172,6 +172,16 @@ export function right<T, U>(value: U): Union<T, U> {
 }
 
 export function notNull<T>(value: T | null): T {
-  if (value == null) throw new Error();
+  if (value === null) throw new Error();
+  return value;
+}
+
+export function notUndefined<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error();
+  return value;
+}
+
+export function notNullOrUndefined<T>(value: T | null | undefined): T {
+  if (value === undefined || value === null) throw new Error();
   return value;
 }

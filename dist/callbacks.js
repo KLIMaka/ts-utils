@@ -592,6 +592,17 @@ export class ValuesContainer {
     async initializeAsync(init) {
         return resultAsync(() => init(this)).then(r => r.onErr(_ => this.dispose()).unwrap());
     }
+    async remove(value) {
+        const { promise, reject, resolve } = Promise.withResolvers();
+        const result = await resultAsync(async () => {
+            await value.dispose();
+            this.graph.remove(value);
+        });
+        result
+            .onOk(resolve)
+            .onErr(reject);
+        return promise;
+    }
     async dispose() {
         const { promise, reject, resolve } = Promise.withResolvers();
         setTimeout(async () => {

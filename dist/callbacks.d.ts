@@ -242,6 +242,7 @@ export declare class ValuesContainer implements Disposable {
     signal<Args extends any[]>(): Signal<Args>;
     initialize<T>(init: Function<ValuesContainer, T>): T;
     initializeAsync<T>(init: Function<ValuesContainer, Promise<T>>): Promise<T>;
+    remove(value: Disposable): Promise<void>;
     dispose(): Promise<void>;
 }
 export {};

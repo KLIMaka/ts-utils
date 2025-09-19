@@ -745,6 +745,18 @@ export class ValuesContainer implements Disposable {
     return resultAsync(() => init(this)).then(r => r.onErr(_ => this.dispose()).unwrap())
   }
 
+  async remove(value: Disposable): Promise<void> {
+    const { promise, reject, resolve } = Promise.withResolvers<void>();
+    const result = await resultAsync(async () => {
+      await value.dispose();
+      this.graph.remove(value);
+    });
+    result
+      .onOk(resolve)
+      .onErr(reject)
+    return promise;
+  }
+
   async dispose(): Promise<void> {
     const { promise, reject, resolve } = Promise.withResolvers<void>();
     setTimeout(async () => {

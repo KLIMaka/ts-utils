@@ -430,8 +430,8 @@ export function tuple(...sources) {
     return new Tuple({ sources });
 }
 export const CONTAINERS = new Set();
-export function createContainer(name) {
-    const values = new ValuesContainer(name);
+export function createContainer(name, parent) {
+    const values = new ValuesContainer(name, parent);
     CONTAINERS.add(values);
     values.addDisconnector(() => CONTAINERS.delete(values));
     return values;
@@ -452,11 +452,13 @@ function exactContentAndOrder(tuple1, tuple2) {
 }
 export class ValuesContainer {
     name;
-    graph = new DirectionalGraph();
+    parent;
     tupleCache = new Map();
+    graph = new DirectionalGraph();
     children = new Map();
-    constructor(name) {
+    constructor(name, parent) {
         this.name = name;
+        this.parent = parent;
     }
     tuple(srcs) {
         if (!uniqueValues(srcs))
@@ -490,7 +492,7 @@ export class ValuesContainer {
         const prevContainer = this.children.get(name);
         if (prevContainer !== undefined)
             prevContainer.dispose();
-        const newContainer = createContainer(name);
+        const newContainer = createContainer(name, this);
         this.children.set(name, newContainer);
         return newContainer;
     }

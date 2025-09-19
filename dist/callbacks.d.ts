@@ -1,4 +1,5 @@
 import { Draft } from "immer";
+import { DirectionalGraph } from "./graph";
 import { BiConsumer, BiFunction, BiPredicate, Consumer, Function, MultiFunction, SingleTuple, Supplier, Transform } from "./types";
 export type ChangeCallback<T> = BiConsumer<T, number>;
 export type Disconnector = Consumer<void>;
@@ -206,13 +207,14 @@ declare class Tuple<Args extends any[]> extends BaseValue<Args> {
 }
 export declare function tuple<Args extends any[]>(...sources: SourcefyArray<Args>): Tuple<Args>;
 export declare const CONTAINERS: Set<ValuesContainer>;
-export declare function createContainer(name: string): ValuesContainer;
+export declare function createContainer(name: string, parent?: ValuesContainer): ValuesContainer;
 export declare class ValuesContainer implements Disposable {
     readonly name: string;
-    private graph;
+    readonly parent?: ValuesContainer | undefined;
     private tupleCache;
-    private children;
-    constructor(name: string);
+    readonly graph: DirectionalGraph<Disposable>;
+    readonly children: Map<string, ValuesContainer>;
+    constructor(name: string, parent?: ValuesContainer | undefined);
     tuple<Tuple extends any[]>(srcs: SourcefyArray<Tuple>): Source<SingleTuple<Tuple>>;
     private find;
     size(): number;

@@ -543,8 +543,8 @@ export function tuple<Args extends any[]>(...sources: SourcefyArray<Args>): Tupl
 }
 
 export const CONTAINERS = new Set<ValuesContainer>();
-export function createContainer(name: string): ValuesContainer {
-  const values = new ValuesContainer(name);
+export function createContainer(name: string, parent?: ValuesContainer): ValuesContainer {
+  const values = new ValuesContainer(name, parent);
   CONTAINERS.add(values);
   values.addDisconnector(() => CONTAINERS.delete(values));
   return values;
@@ -566,11 +566,14 @@ function exactContentAndOrder(tuple1: any[], tuple2: any[]): boolean {
 }
 
 export class ValuesContainer implements Disposable {
-  private graph = new DirectionalGraph<Disposable>();
   private tupleCache = new Map<Source<any>[], Source<any>>();
-  private children = new Map<string, ValuesContainer>();
+  readonly graph = new DirectionalGraph<Disposable>();
+  readonly children = new Map<string, ValuesContainer>();
 
-  constructor(readonly name: string) { }
+  constructor(
+    readonly name: string,
+    readonly parent?: ValuesContainer
+  ) { }
 
   public tuple<Tuple extends any[]>(srcs: SourcefyArray<Tuple>): Source<SingleTuple<Tuple>> {
     if (!uniqueValues(srcs)) throw new Error(`Duplicate sources`);
@@ -606,7 +609,7 @@ export class ValuesContainer implements Disposable {
   createChild(name: string): ValuesContainer {
     const prevContainer = this.children.get(name);
     if (prevContainer !== undefined) prevContainer.dispose();
-    const newContainer = createContainer(name)
+    const newContainer = createContainer(name, this)
     this.children.set(name, newContainer);
     return newContainer;
   }

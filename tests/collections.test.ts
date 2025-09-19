@@ -1,4 +1,4 @@
-import { Deck, IndexedDeck, all, cyclicPairs, cyclicRange, enumerate, findFirst, first, flatten, isEmpty, last, map, slidingPairs, range, rect, reduce, reversed, sub, take, wrap, slidingWindow, groups, Ring } from "../src/collections";
+import { Deck, IndexedDeck, all, cyclicPairs, cyclicRange, enumerate, findFirst, first, flatten, isEmpty, last, map, slidingPairs, range, rect, reduce, reversed, sub, take, wrap, slidingWindow, groups, Ring, flatMap } from "../src/collections";
 import { SortedList } from "../src/list";
 import { rand0 } from "../src/random";
 
@@ -146,6 +146,7 @@ test('Utils', () => {
   expect(findFirst([]).isPresent()).toBe(false);
   expect(findFirst([1, 2, 3], x => x === 42).isPresent()).toBe(false);
   expect(findFirst([1, 2, 3], x => x === 3).get()).toBe(3);
+  expect([...flatMap([1, 2, 3, 4], x => [x * 2, x * 3])]).toStrictEqual([2, 3, 4, 6, 6, 9, 8, 12]);
 });
 
 test('Sorted List', () => {

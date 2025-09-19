@@ -467,6 +467,15 @@ export function* flatten(i) {
         item = ii.next();
     }
 }
+export function* flatMap(i, f) {
+    const ii = i[Symbol.iterator]();
+    let item = ii.next();
+    while (!item.done) {
+        for (const v of f(item.value))
+            yield v;
+        item = ii.next();
+    }
+}
 export function toMap(i, keyMapper, valueMapper) {
     const map = new Map();
     for (const item of i)

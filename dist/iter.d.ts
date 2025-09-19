@@ -25,6 +25,7 @@ export declare class Iter<T> implements Iterable<T> {
     chain(i: Iterable<T>): Iter<T>;
     butLast(): Iter<T>;
     flatten(): Iter<Deiterable<T>>;
+    flatMap<U>(f: (t: T) => Iterable<U>): Iter<U>;
     collect(): T[];
     set(): Set<T>;
     length(): number;

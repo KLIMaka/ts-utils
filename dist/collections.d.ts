@@ -108,6 +108,7 @@ export declare function intersect<T>(lh: Set<T>, rh: Set<T>): Set<T>;
 export declare function interpolate<T>(ii: Iterable<T>, f: MultiFunction<[T, T, number], T>, points?: number[]): Generator<T>;
 export type Deiterable<T> = T extends Iterable<infer T1> ? T1 : never;
 export declare function flatten<T>(i: Iterable<Iterable<T>>): Generator<T>;
+export declare function flatMap<T, U>(i: Iterable<T>, f: (t: T) => Iterable<U>): Generator<U>;
 export declare function toMap<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V>;
 export declare function toObject<T, U>(i: Iterable<T>, keyMapper: Function<T, keyof U>, valueMapper: Function<T, any>): U;
 export declare function group<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V[]>;

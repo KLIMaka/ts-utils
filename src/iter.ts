@@ -1,5 +1,5 @@
 import Optional from "optional-js";
-import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, Deiterable, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range } from "./collections";
+import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, Deiterable, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range, flatMap } from "./collections";
 import { Function } from "./types";
 
 export class Iter<T> implements Iterable<T> {
@@ -27,6 +27,7 @@ export class Iter<T> implements Iterable<T> {
   chain(i: Iterable<T>): Iter<T> { return new Iter(chain(this.iter, i)) }
   butLast(): Iter<T> { return new Iter(butLast(this.iter)) }
   flatten(): Iter<Deiterable<T>> { return new Iter(flatten(this.iter as Iterable<Iterable<Deiterable<T>>>)) }
+  flatMap<U>(f: (t: T) => Iterable<U>): Iter<U> { return new Iter(flatMap(this.iter, f)) }
   collect(): T[] { return [...this.iter] }
   set(): Set<T> { return new Set(this.iter) }
   length(): number { return length(this.iter) }

@@ -489,6 +489,15 @@ export function* flatten<T>(i: Iterable<Iterable<T>>): Generator<T> {
   }
 }
 
+export function* flatMap<T, U>(i: Iterable<T>, f: (t: T) => Iterable<U>): Generator<U> {
+  const ii = i[Symbol.iterator]();
+  let item = ii.next();
+  while (!item.done) {
+    for (const v of f(item.value)) yield v;
+    item = ii.next();
+  }
+}
+
 export function toMap<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V> {
   const map = new Map<K, V>();
   for (const item of i) map.set(keyMapper(item), valueMapper(item))

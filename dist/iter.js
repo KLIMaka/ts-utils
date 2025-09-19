@@ -1,4 +1,4 @@
-import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range } from "./collections";
+import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range, flatMap } from "./collections";
 export class Iter {
     iter;
     static of(iter) { return new Iter(iter); }
@@ -26,6 +26,7 @@ export class Iter {
     chain(i) { return new Iter(chain(this.iter, i)); }
     butLast() { return new Iter(butLast(this.iter)); }
     flatten() { return new Iter(flatten(this.iter)); }
+    flatMap(f) { return new Iter(flatMap(this.iter, f)); }
     collect() { return [...this.iter]; }
     set() { return new Set(this.iter); }
     length() { return length(this.iter); }

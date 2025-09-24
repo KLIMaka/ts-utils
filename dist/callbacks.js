@@ -18,9 +18,9 @@ export function arrayEq(arr1, arr2, eqf = (l, r) => l === r) {
     return arrayEqImpl(arr1, arr2, eqf);
 }
 export function objectEq(obj1, obj2) {
-    if (!arrayEqImpl(Object.keys(obj1), Object.keys(obj2)))
+    if (!arrayEqImpl(Object.getOwnPropertyNames(obj1), Object.getOwnPropertyNames(obj2)))
         return false;
-    for (const k in obj1)
+    for (const k in Object.getOwnPropertyNames(obj1))
         if (obj1[k] !== obj2[k])
             return false;
     return true;
@@ -72,7 +72,7 @@ class ConstSource {
     }
     get() { return this.value; }
     mods() { return 0; }
-    depends(value) { return false; }
+    depends(value) { return Optional.empty(); }
     subscribe(_) { return nil(); }
     async dispose() { this.disposer(this.value); }
 }
@@ -137,7 +137,7 @@ export class BaseValue extends BaseSource {
     modImmer(mod) { this.set(produce(this.value, draft => { mod(draft); })); }
     mod(mod) { this.set(mod(this.value)); }
     mods() { return this.modsCount; }
-    depends(value) { return false; }
+    depends(value) { return Optional.empty(); }
     disposeValue(value) { this.disposer(value); }
 }
 export class Value extends BaseValue {
@@ -268,7 +268,9 @@ export class TransformValue extends BaseValue {
         return super.get();
     }
     depends(value) {
-        return this.source === value || this.source.depends(value);
+        return this.source === value
+            ? Optional.of(0)
+            : this.source.depends(value).map(d => d + 1);
     }
 }
 export function transformedBuilder(builder) {
@@ -339,7 +341,9 @@ export class TransformValueAsync extends BaseValue {
         return super.get();
     }
     depends(value) {
-        return this.source === value || this.source.depends(value);
+        return this.source === value
+            ? Optional.of(0)
+            : this.source.depends(value).map(d => d + 1);
     }
     set(newValue) {
         if (this.value === TRANSFORM_PLACEHOLDER)
@@ -422,19 +426,16 @@ class Tuple extends BaseValue {
         return super.mods();
     }
     depends(value) {
-        return iter(this.sources).any(s => s === value || s.depends(value));
+        return this.sources.some(s => s === value)
+            ? Optional.of(0)
+            : this.sources.map(s => s.depends(value))
+                .reduceRight((l, r) => l.or(() => r))
+                .map(d => d + 1);
     }
     lastDisconnect() { this.disconnectors.forEach(d => d()); }
 }
 export function tuple(...sources) {
     return new Tuple({ sources });
-}
-export const CONTAINERS = new Set();
-export function createContainer(name, parent) {
-    const values = new ValuesContainer(name, parent);
-    CONTAINERS.add(values);
-    values.addDisconnector(() => CONTAINERS.delete(values));
-    return values;
 }
 function uniqueValues(tuple) {
     const set = new Set(tuple);
@@ -492,13 +493,21 @@ export class ValuesContainer {
         const prevContainer = this.children.get(name);
         if (prevContainer !== undefined)
             prevContainer.dispose();
-        const newContainer = createContainer(name, this);
+        const newContainer = new ValuesContainer(name, this);
         this.children.set(name, newContainer);
         return newContainer;
     }
     addSubscribed(value, cb) {
         const dispose = disposable(value.subscribe(cb));
         this.find(value).ifPresentOrElse(d => this.graph.add(dispose, d), () => this.addDisposable(dispose));
+    }
+    depends(value) {
+        return this.graph.nodes.has(value)
+            ? Optional.of(0)
+            : this.children.values()
+                .map(c => c.depends(value))
+                .reduce((l, r) => l.or(() => r))
+                .map(d => d + 1);
     }
     const(name, v, disposer) {
         return this.addDisposable(constSource(name, v, disposer));

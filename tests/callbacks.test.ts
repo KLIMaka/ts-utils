@@ -1,5 +1,6 @@
 import { enableMapSet } from "immer";
-import { createContainer, transformed, value } from "../src/callbacks";
+import { transformed, value, ValuesContainer } from "../src/callbacks";
+import Optional from "optional-js";
 
 test('value', () => {
   const a = value('a', 1);
@@ -101,7 +102,7 @@ test('transformed', () => {
 });
 
 test('transformed count', () => {
-  const values = createContainer('container');
+  const values = new ValuesContainer('container');
   const src = values.value('src', 42);
   let transforms = 0;
   const trans = values.transformed('trans', src, x => { transforms++; return x * x });
@@ -121,7 +122,7 @@ test('transformed count', () => {
 });
 
 test('tuple1', () => {
-  const values = createContainer('container');
+  const values = new ValuesContainer('container');
   const a = values.value('a', 1);
   const tr = values.transformed('tr', a, x => x + 1);
   const tr1 = values.transformedTuple('tr1', [a, tr], x => x.toString());
@@ -140,8 +141,8 @@ test('tuple1', () => {
   expect(tr1.get()).toStrictEqual('11,12');
   expect(log).toStrictEqual(["42,43", "11,12"]);
 
-  const values1 = createContainer('container1');
-  const values2 = createContainer('container2');
+  const values1 = new ValuesContainer('container1');
+  const values2 = new ValuesContainer('container2');
   const a1 = values1.value('a', 42);
   const tra = values1.transformed('tra', a1, x => x * 2);
   const tt = values2.transformedTuple('tt', [a1, tra], x => x.toString());
@@ -153,19 +154,19 @@ test('tuple1', () => {
   a1.set(11);
   expect(tt.get()).toStrictEqual('11,22');
   expect(log1).toStrictEqual(["11,22"]);
-  expect(tt.depends(a1)).toBeTruthy();
-  expect(tt.depends(tra)).toBeTruthy();
-  expect(tra.depends(a1)).toBeTruthy();
-  expect(a1.depends(tra)).toBeFalsy();
-  expect(a1.depends(tt)).toBeFalsy();
-  expect(tt1.depends(a1)).toBeTruthy();
-  expect([a1, tra, tt, tt1].toSorted((l, r) => l.depends(r) ? -1 : 1)).toEqual([tt, tt1, tra, a1]);
-  expect([tra, a1, tt, tt1].toSorted((l, r) => l.depends(r) ? -1 : 1)).toEqual([tt, tt1, tra, a1]);
-  expect([tt1, tra, a1, tt].toSorted((l, r) => l.depends(r) ? -1 : 1)).toEqual([tt1, tt, tra, a1]);
+  expect(tt.depends(a1)).toStrictEqual(Optional.of(1));
+  expect(tt.depends(tra)).toStrictEqual(Optional.of(1));
+  expect(tra.depends(a1)).toStrictEqual(Optional.of(0));
+  expect(a1.depends(tra)).toStrictEqual(Optional.empty());
+  expect(a1.depends(tt)).toStrictEqual(Optional.empty());
+  expect(tt1.depends(a1)).toStrictEqual(Optional.of(1));
+  expect([a1, tra, tt, tt1].toSorted((l, r) => l.depends(r).map(_ => -1).orElse(1))).toEqual([tt, tt1, tra, a1]);
+  expect([tra, a1, tt, tt1].toSorted((l, r) => l.depends(r).map(_ => -1).orElse(1))).toEqual([tt, tt1, tra, a1]);
+  expect([tt1, tra, a1, tt].toSorted((l, r) => l.depends(r).map(_ => -1).orElse(1))).toEqual([tt1, tt, tra, a1]);
 });
 
 test('transformedTuple', () => {
-  const values = createContainer('container');
+  const values = new ValuesContainer('container');
   const a = values.value('a', 1);
   const b = values.value('b', new Set<string>());
   const c = values.value('c', 'str');
@@ -183,7 +184,7 @@ test('transformedTuple', () => {
 });
 
 test('values container', async () => {
-  const cont = createContainer('container');
+  const cont = new ValuesContainer('container');
   const log: string[] = [];
   const disposer = (arg: any) => log.push(`${arg} disposed`);
   const a = cont.valueBuilder({ name: 'a', value: 42, disposer })
@@ -212,7 +213,7 @@ test('values container', async () => {
 });
 
 test('custom eq', () => {
-  const values = createContainer('container');
+  const values = new ValuesContainer('container');
   type T = { value: number };
   const a: T = { value: 42 };
 

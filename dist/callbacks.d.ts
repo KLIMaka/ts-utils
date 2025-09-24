@@ -1,4 +1,5 @@
 import { Draft } from "immer";
+import Optional from "optional-js";
 import { DirectionalGraph } from "./graph";
 import { BiConsumer, BiFunction, BiPredicate, Consumer, Function, MultiFunction, SingleTuple, Supplier, Transform } from "./types";
 export type ChangeCallback<T> = BiConsumer<T, number>;
@@ -14,7 +15,7 @@ export interface Source<T> {
     get(): T;
     mods(): number;
     subscribe(cb: ChangeCallback<T>, lastMods?: number): Disconnector;
-    depends(value: any): boolean;
+    depends(value: any): Optional<number>;
 }
 export interface Destination<T> {
     set(value: T): void;
@@ -39,7 +40,7 @@ declare abstract class BaseSource<T> implements Source<T> {
     protected notify(value: T, mods: number): void;
     abstract get(): T;
     abstract mods(): number;
-    abstract depends(value: any): boolean;
+    abstract depends(value: any): Optional<number>;
 }
 declare class ConstSource<T> implements Source<T>, Disposable {
     readonly name: string;
@@ -48,7 +49,7 @@ declare class ConstSource<T> implements Source<T>, Disposable {
     constructor(name: string | undefined, value: T, disposer: Consumer<T>);
     get(): T;
     mods(): number;
-    depends(value: any): boolean;
+    depends(value: any): Optional<number>;
     subscribe(_: ChangeCallback<T>): Disconnector;
     dispose(): Promise<void>;
 }
@@ -77,7 +78,7 @@ export declare class BaseValue<T> extends BaseSource<T> implements Disposable {
     modImmer(mod: Consumer<Draft<T>>): void;
     mod(mod: Transform<T>): void;
     mods(): number;
-    depends(value: any): boolean;
+    depends(value: any): Optional<number>;
     protected disposeValue(value: T): void;
 }
 export declare class Value<T> extends BaseValue<T> implements Destination<T>, Source<T> {
@@ -145,7 +146,7 @@ export declare class TransformValue<S extends any[], D> extends BaseValue<D> {
     private actualize;
     mods(): number;
     get(): D;
-    depends(value: any): boolean;
+    depends(value: any): Optional<number>;
 }
 export declare function transformedBuilder<S extends any[], D>(builder: TransformValueBuilder<S, D>): TransformValue<S, D>;
 export declare function transformed<S, D>(source: Source<S>, transformer: Function<S, D>, srcConnector?: BiFunction<S, BaseValue<D>, Disconnector>): TransformValue<[S], D>;
@@ -177,7 +178,7 @@ export declare class TransformValueAsync<S extends any[], D> extends BaseValue<D
     private actualize;
     mods(): number;
     get(): D;
-    depends(value: any): boolean;
+    depends(value: any): Optional<number>;
     set(newValue: D): void;
     protected setOrDispose(newValue: D): void;
     protected disposeValue(value: D): void;
@@ -202,12 +203,10 @@ declare class Tuple<Args extends any[]> extends BaseValue<Args> {
     protected setOrDispose(newValue: Args): void;
     get(): Args;
     mods(): number;
-    depends(value: any): boolean;
+    depends(value: any): Optional<number>;
     lastDisconnect(): void;
 }
 export declare function tuple<Args extends any[]>(...sources: SourcefyArray<Args>): Tuple<Args>;
-export declare const CONTAINERS: Set<ValuesContainer>;
-export declare function createContainer(name: string, parent?: ValuesContainer): ValuesContainer;
 export declare class ValuesContainer implements Disposable {
     readonly name: string;
     readonly parent?: ValuesContainer | undefined;
@@ -222,6 +221,7 @@ export declare class ValuesContainer implements Disposable {
     addDisposable<T extends Disposable>(value: T): T;
     createChild(name: string): ValuesContainer;
     addSubscribed<T>(value: Source<T>, cb: ChangeCallback<T>): void;
+    depends(value: any): Optional<number>;
     const<T>(name: string, v: T, disposer?: Consumer<T>): Source<T>;
     value<T>(name: string, v: T): Value<T>;
     valueBuilder<T>(builder: ValueBuilder<T>): Value<T>;

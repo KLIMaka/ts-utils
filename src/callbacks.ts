@@ -21,8 +21,8 @@ export function arrayEq<T>(arr1: T[], arr2: T[], eqf: BiPredicate<T, T> = (l, r)
 }
 
 export function objectEq(obj1: any, obj2: any): boolean {
-  if (!arrayEqImpl(Object.keys(obj1), Object.keys(obj2))) return false;
-  for (const k in obj1)
+  if (!arrayEqImpl(Object.getOwnPropertyNames(obj1), Object.getOwnPropertyNames(obj2))) return false;
+  for (const k in Object.getOwnPropertyNames(obj1))
     if (obj1[k] !== obj2[k]) return false;
   return true;
 }
@@ -38,7 +38,7 @@ export interface Source<T> {
   get(): T,
   mods(): number,
   subscribe(cb: ChangeCallback<T>, lastMods?: number): Disconnector,
-  depends(value: any): boolean;
+  depends(value: any): Optional<number>;
 }
 
 export interface Destination<T> {
@@ -85,7 +85,7 @@ abstract class BaseSource<T> implements Source<T> {
 
   abstract get(): T;
   abstract mods(): number;
-  abstract depends(value: any): boolean;
+  abstract depends(value: any): Optional<number>;
 }
 
 class ConstSource<T> implements Source<T>, Disposable {
@@ -96,7 +96,7 @@ class ConstSource<T> implements Source<T>, Disposable {
   ) { }
   get(): T { return this.value }
   mods(): number { return 0 }
-  depends(value: any): boolean { return false }
+  depends(value: any): Optional<number> { return Optional.empty() }
   subscribe(_: ChangeCallback<T>): Disconnector { return nil() }
   async dispose(): Promise<void> { this.disposer(this.value) }
 }
@@ -159,8 +159,7 @@ export class BaseValue<T> extends BaseSource<T> implements Disposable {
   }
 
   async dispose() {
-    if (this.hasSubscriptions())
-      throw new Error(`Value '${this.name}' has subscriptions`);
+    if (this.hasSubscriptions()) throw new Error(`Value '${this.name}' has subscriptions`);
     this.disposeValue(this.value);
     this.value = null as T;
   }
@@ -169,7 +168,7 @@ export class BaseValue<T> extends BaseSource<T> implements Disposable {
   modImmer(mod: Consumer<Draft<T>>) { this.set(produce<T>(this.value, draft => { mod(draft) })); }
   mod(mod: Transform<T>) { this.set(mod(this.value)) }
   mods(): number { return this.modsCount }
-  depends(value: any): boolean { return false }
+  depends(value: any): Optional<number> { return Optional.empty() }
   protected disposeValue(value: T) { this.disposer(value) }
 }
 
@@ -335,8 +334,10 @@ export class TransformValue<S extends any[], D> extends BaseValue<D> {
     return super.get()
   }
 
-  depends(value: any): boolean {
-    return this.source === value || this.source.depends(value);
+  depends(value: any): Optional<number> {
+    return this.source === value
+      ? Optional.of(0)
+      : this.source.depends(value).map(d => d + 1);
   }
 }
 
@@ -432,8 +433,10 @@ export class TransformValueAsync<S extends any[], D> extends BaseValue<D> {
     return super.get()
   }
 
-  depends(value: any): boolean {
-    return this.source === value || this.source.depends(value);
+  depends(value: any): Optional<number> {
+    return this.source === value
+      ? Optional.of(0)
+      : this.source.depends(value).map(d => d + 1);
   }
 
   set(newValue: D): void {
@@ -531,8 +534,12 @@ class Tuple<Args extends any[]> extends BaseValue<Args> {
     return super.mods();
   }
 
-  depends(value: any): boolean {
-    return iter(this.sources).any(s => s === value || s.depends(value))
+  depends(value: any): Optional<number> {
+    return this.sources.some(s => s === value)
+      ? Optional.of(0)
+      : this.sources.map(s => s.depends(value))
+        .reduceRight((l, r) => l.or(() => r))
+        .map(d => d + 1);
   }
 
   lastDisconnect(): void { this.disconnectors.forEach(d => d()) }
@@ -542,13 +549,6 @@ export function tuple<Args extends any[]>(...sources: SourcefyArray<Args>): Tupl
   return new Tuple<Args>({ sources });
 }
 
-export const CONTAINERS = new Set<ValuesContainer>();
-export function createContainer(name: string, parent?: ValuesContainer): ValuesContainer {
-  const values = new ValuesContainer(name, parent);
-  CONTAINERS.add(values);
-  values.addDisconnector(() => CONTAINERS.delete(values));
-  return values;
-}
 
 function uniqueValues<Tuple extends any[]>(tuple: Tuple): boolean {
   const set = new Set(tuple);
@@ -575,7 +575,7 @@ export class ValuesContainer implements Disposable {
     readonly parent?: ValuesContainer
   ) { }
 
-  public tuple<Tuple extends any[]>(srcs: SourcefyArray<Tuple>): Source<SingleTuple<Tuple>> {
+  tuple<Tuple extends any[]>(srcs: SourcefyArray<Tuple>): Source<SingleTuple<Tuple>> {
     if (!uniqueValues(srcs)) throw new Error(`Duplicate sources`);
     const cached = iter(this.tupleCache.entries())
       .filter(([k, _]) => exactContentAndOrder(k, srcs))
@@ -609,7 +609,7 @@ export class ValuesContainer implements Disposable {
   createChild(name: string): ValuesContainer {
     const prevContainer = this.children.get(name);
     if (prevContainer !== undefined) prevContainer.dispose();
-    const newContainer = createContainer(name, this)
+    const newContainer = new ValuesContainer(name, this)
     this.children.set(name, newContainer);
     return newContainer;
   }
@@ -617,6 +617,15 @@ export class ValuesContainer implements Disposable {
   addSubscribed<T>(value: Source<T>, cb: ChangeCallback<T>): void {
     const dispose = disposable(value.subscribe(cb));
     this.find(value).ifPresentOrElse(d => this.graph.add(dispose, d), () => this.addDisposable(dispose));
+  }
+
+  depends(value: any): Optional<number> {
+    return this.graph.nodes.has(value)
+      ? Optional.of(0)
+      : this.children.values()
+        .map(c => c.depends(value))
+        .reduce((l, r) => l.or(() => r))
+        .map(d => d + 1);
   }
 
   const<T>(name: string, v: T, disposer?: Consumer<T>): Source<T> {

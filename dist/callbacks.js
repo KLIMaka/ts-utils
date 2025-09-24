@@ -504,9 +504,13 @@ export class ValuesContainer {
     depends(value) {
         return this.graph.nodes.has(value)
             ? Optional.of(0)
-            : this.children.values()
+            : this.graph.nodes.keys()
+                .filter(n => n?.depends !== undefined)
+                .map(n => n.depends(value))
+                .reduce((l, r) => l.or(() => r), Optional.empty())
+                .or(() => this.children.values()
                 .map(c => c.depends(value))
-                .reduce((l, r) => l.or(() => r))
+                .reduce((l, r) => l.or(() => r), Optional.empty()))
                 .map(d => d + 1);
     }
     const(name, v, disposer) {

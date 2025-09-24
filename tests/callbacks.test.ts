@@ -235,3 +235,19 @@ test('custom eq', () => {
   expect(value.get() !== b).toBeTruthy();
   expect(value.get().value).toBe(12);
 });
+
+test('depends', () => {
+  const v1 = new ValuesContainer('v1');
+  const v2 = new ValuesContainer('v2');
+  const v11 = v1.createChild('v11');
+  const v22 = v2.createChild('v22');
+
+  const a = v1.value('a', 12);
+  const b = v2.value('b', 42);
+  const c = v11.transformedTuple('c', [a, b], ([a, b]) => a + b);
+  const d = v22.transformed('d', c, c => c ** 2);
+
+  expect(c.depends(a)).toStrictEqual(Optional.of(1));
+  expect(v11.depends(a)).toStrictEqual(Optional.of(2));
+  expect(v22.depends(b)).toStrictEqual(Optional.of(3));
+});

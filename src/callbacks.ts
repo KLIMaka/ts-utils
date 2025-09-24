@@ -622,9 +622,13 @@ export class ValuesContainer implements Disposable {
   depends(value: any): Optional<number> {
     return this.graph.nodes.has(value)
       ? Optional.of(0)
-      : this.children.values()
-        .map(c => c.depends(value))
-        .reduce((l, r) => l.or(() => r))
+      : this.graph.nodes.keys()
+        .filter(n => (n as any)?.depends !== undefined)
+        .map(n => (n as any as Source<any>).depends(value))
+        .reduce((l, r) => l.or(() => r), Optional.empty())
+        .or(() => this.children.values()
+          .map(c => c.depends(value))
+          .reduce((l, r) => l.or(() => r), Optional.empty()))
         .map(d => d + 1);
   }
 

@@ -1,5 +1,5 @@
-import { Source, transformedBuilder, tuple, value } from "./callbacks";
-import { Consumer, Err, Ok, Result, second, Supplier } from "./types";
+import { Source, transformedBuilder, tuple, Value, value, ValuesContainer } from "./callbacks";
+import { Consumer, Err, Function, Ok, Result, second, Supplier } from "./types";
 
 export class TaskInerruptedError extends Error {
   constructor() { super('Task Interrupted') }
@@ -13,21 +13,23 @@ export type ProgressInfo = {
 }
 
 export interface TaskHandle {
+  readonly values: ValuesContainer;
   plan(count: number): void;
   incProgress(inc: number): void;
   wait(info?: string, count?: number): Promise<void>;
   waitMaybe(dt?: number): Promise<void>;
   waitFor<T>(promise: Promise<T>, info?: string, count?: number): Promise<T>;
-  waitForBatchTask(batch: Consumer<void>[], info?: string, time?: number): Promise<void>;
+  waitForBatchTask<T>(batch: Supplier<T>[], info?: string, time?: number): Promise<T[]>;
 }
 
 export const NOOP_TASK_HANDLE: TaskHandle = {
+  values: new ValuesContainer(''),
   plan: (count: number) => { },
   incProgress: (count: number) => { },
   wait: (info?: string, count?: number) => Promise.resolve(),
   waitMaybe: () => Promise.resolve(),
   waitFor: <T>(promise: Promise<T>, info?: string, count?: number) => promise,
-  waitForBatchTask: async (batch: Consumer<void>[], info?: string, time?: number) => batch.forEach(b => b()),
+  waitForBatchTask: async <T>(batch: Supplier<T>[], info?: string, time?: number) => batch.map(b => b()),
 }
 
 export type TaskValue<T> = {
@@ -45,6 +47,7 @@ export function done<T>(result: Result<T>): TaskValue<T> {
 }
 
 export interface TaskController<T> extends ProgressInfo {
+  readonly name: string;
   readonly paused: Source<boolean>;
   readonly task: Source<TaskValue<T>>;
 
@@ -55,9 +58,9 @@ export interface TaskController<T> extends ProgressInfo {
 }
 
 export type Task<T> = (handle: TaskHandle) => Promise<T>;
-
 export interface Scheduler {
-  exec<T>(task: Task<T>): TaskController<T>;
+  exec<T>(task: Task<T>, name?: string): TaskController<T>;
+  tasks: Source<TaskController<any>[]>;
 }
 
 const RESOLVED = Promise.resolve();
@@ -93,20 +96,20 @@ class Barrier {
 }
 
 class PropgressInfoImpl implements ProgressInfo {
-  private id = 0;
-  private infos = value<[number, string][]>('', []);
-  private planCount = value('', 0);
-  private currentCount = value('', 0);
-  readonly info = transformedBuilder({
-    value: '',
-    source: this.infos,
-    transformer: is => is.map(second).toString()
-  });
-  readonly progress = transformedBuilder({
-    value: 0,
-    source: tuple(this.planCount, this.currentCount),
-    transformer: ([plan, current]) => (plan === 0 ? 0 : current / plan) * 100
-  });
+  private subtaskId = 0;
+  private infos: Value<[number, string][]>;
+  private planCount: Value<number>;
+  private currentCount: Value<number>;
+  readonly info: Value<string>;
+  readonly progress: Source<number>;
+
+  constructor(values: ValuesContainer) {
+    this.infos = values.value<[number, string][]>('infos', []);
+    this.planCount = values.value('plan-count', 0);
+    this.currentCount = value('current-count', 0);
+    this.info = values.transformed('info', this.infos, is => is.map(second).toString());
+    this.progress = values.transformedTuple('progress', [this.planCount, this.currentCount], ([plan, current]) => (plan === 0 ? 0 : current / plan) * 100);
+  }
 
   plan(dc: number) {
     this.planCount.mod(c => c + dc);
@@ -116,13 +119,13 @@ class PropgressInfoImpl implements ProgressInfo {
     this.currentCount.mod(c => c + dc);
   }
 
-  beginTask(label: string): number {
-    const id = this.id++;
-    this.infos.mod(is => [...is, [id, label]]);
-    return id;
+  beginSubTask(label: string): number {
+    const subtaskId = this.subtaskId++;
+    this.infos.mod(is => [...is, [subtaskId, label]]);
+    return subtaskId;
   }
 
-  endTask(id: number): void {
+  endSubTask(id: number): void {
     this.infos.mod(is => is.filter(([itemId, _]) => id !== itemId));
   }
 }
@@ -131,18 +134,27 @@ class TaskDescriptor<T> implements TaskController<T>, TaskHandle {
   private stopped = false;
   private pauseBarrier = new Barrier(false);
   private taskImpl: Promise<Result<T>> | undefined;
-  private progressImpl = new PropgressInfoImpl();
+  private progressImpl: PropgressInfoImpl;
 
-  readonly paused = value('', false);
-  readonly task = value('', progress<T>(this.progressImpl));
-  readonly info = this.progressImpl.info;
-  readonly progress = this.progressImpl.progress;
+  readonly paused: Value<boolean>;;
+  readonly task: Value<TaskValue<T>>;
+  readonly info: Source<string>;
+  readonly progress: Source<number>;
 
   constructor(
+    readonly name: string,
+    readonly values: ValuesContainer,
     private scheduler: Supplier<Promise<void>>,
     private tickStart: Supplier<number>,
     private timer: Supplier<number>
-  ) { }
+  ) {
+    this.progressImpl = new PropgressInfoImpl(values);
+    this.info = this.progressImpl.info;
+    this.progress = this.progressImpl.progress;
+    this.paused = values.value('paused', false);
+    this.task = value('task', progress<T>(this.progressImpl))
+
+  }
 
   private checkStopped() { if (this.stopped) throw new TaskInerruptedError() }
 
@@ -173,22 +185,23 @@ class TaskDescriptor<T> implements TaskController<T>, TaskHandle {
 
   async waitFor<T>(promise: Promise<T>, info: string = '', count: number = 1): Promise<T> {
     this.checkStopped();
-    const infoId = this.progressImpl.beginTask(info);
+    const infoId = this.progressImpl.beginSubTask(info);
     const result = await promise;
-    this.progressImpl.endTask(infoId);
+    this.progressImpl.endSubTask(infoId);
     this.progressImpl.inc(count);
     await this.pauseBarrier.wait();
     this.checkStopped();
     return result;
   }
 
-  async waitForBatchTask(batch: Consumer<void>[], info?: string, time = 10): Promise<void> {
+  async waitForBatchTask<T>(batch: Supplier<T>[], info?: string, time = 10): Promise<T[]> {
     this.checkStopped();
-    const infoId = this.progressImpl.beginTask(info ?? '');
+    const result: T[] = [];
+    const infoId = this.progressImpl.beginSubTask(info ?? '');
     this.plan(batch.length);
     let start = this.timer();
     for (const task of batch) {
-      task();
+      result.push(task());
       this.incProgress(1);
 
       if (this.timer() - start < time) continue;
@@ -201,7 +214,8 @@ class TaskDescriptor<T> implements TaskController<T>, TaskHandle {
     }
     await this.pauseBarrier.wait();
     this.checkStopped();
-    this.progressImpl.endTask(infoId);
+    this.progressImpl.endSubTask(infoId);
+    return result;
   }
 
   pause() { this.paused.set(true); this.pauseBarrier.block() }
@@ -219,12 +233,18 @@ class TaskDescriptor<T> implements TaskController<T>, TaskHandle {
 export class SchedulerImpl implements Scheduler {
   private nextTick: Promise<void>;
   private tickStart = 0;
+  readonly tasks: Source<TaskController<any>[]>;
+  private tasksImpl: Value<TaskController<any>[]>;
+  private lastLaskId = 0;
 
   constructor(
     private eventloop: EventLoop,
-    private timer: Supplier<number>
+    private timer: Supplier<number>,
+    private localValues: ValuesContainer,
   ) {
     this.nextTick = this.createNextTick();
+    this.tasksImpl = this.localValues.value<TaskController<any>[]>('tasks', []);
+    this.tasks = this.tasksImpl;
   }
 
   private createNextTick() {
@@ -240,8 +260,10 @@ export class SchedulerImpl implements Scheduler {
     this.nextTick = this.createNextTick();
   }
 
-  exec<T>(task: Task<T>): TaskController<T> {
-    const descriptor = new TaskDescriptor<T>(() => this.nextTick, () => this.tickStart, this.timer);
+  exec<T>(task: Task<T>, name?: string): TaskController<T> {
+    const taskName = name ?? `task-${this.lastLaskId++}`;
+    const taskValues = this.localValues.createChild(taskName);
+    const descriptor = new TaskDescriptor<T>(taskName, taskValues, () => this.nextTick, () => this.tickStart, this.timer);
     const wrappedTask = task(descriptor)
       .then(result => {
         const ok = new Ok<T>(result);
@@ -253,12 +275,17 @@ export class SchedulerImpl implements Scheduler {
         descriptor.task.set(done(err));
         return err;
       })
+      .finally(() => {
+        this.tasksImpl.mod(ts => ts.filter(t => t !== descriptor));
+        taskValues.dispose();
+      })
     descriptor.setTask(wrappedTask);
+    this.tasksImpl.mod(t => [...t, descriptor]);
     return descriptor;
   }
 
 }
 
-export function DefaultScheduler(eventloop: EventLoop, timer: Supplier<number>): Scheduler {
-  return new SchedulerImpl(eventloop, timer);
+export function DefaultScheduler(eventloop: EventLoop, timer: Supplier<number>, values: ValuesContainer): Scheduler {
+  return new SchedulerImpl(eventloop, timer, values);
 }

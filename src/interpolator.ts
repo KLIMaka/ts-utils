@@ -7,7 +7,6 @@ export type Interpolator<T> = (lh: T, rh: T, t: number) => T;
 export function left<T>(): Interpolator<T> { return (lh, rh, t) => lh }
 export function right<T>(): Interpolator<T> { return (lh, rh, t) => rh }
 
-
 export const LinearInterpolator = (lh: number, rh: number, t: number) => linear(lh, rh, t);
 export const SmothstepInterpolator = (lh: number, rh: number, t: number) => lh + smothstep(lh + (rh - lh) * t, lh, rh) * (rh - lh);
 

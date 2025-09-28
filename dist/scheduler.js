@@ -1,15 +1,16 @@
-import { transformedBuilder, tuple, value } from "./callbacks";
+import { value, ValuesContainer } from "./callbacks";
 import { Err, Ok, second } from "./types";
 export class TaskInerruptedError extends Error {
     constructor() { super('Task Interrupted'); }
 }
 export const NOOP_TASK_HANDLE = {
+    values: new ValuesContainer(''),
     plan: (count) => { },
     incProgress: (count) => { },
     wait: (info, count) => Promise.resolve(),
     waitMaybe: () => Promise.resolve(),
     waitFor: (promise, info, count) => promise,
-    waitForBatchTask: async (batch, info, time) => batch.forEach(b => b()),
+    waitForBatchTask: async (batch, info, time) => batch.map(b => b()),
 };
 export function progress(info) {
     return { isDone: () => false, result: () => { throw new Error(); }, progress: () => info };
@@ -54,51 +55,60 @@ class Barrier {
     } }
 }
 class PropgressInfoImpl {
-    id = 0;
-    infos = value('', []);
-    planCount = value('', 0);
-    currentCount = value('', 0);
-    info = transformedBuilder({
-        value: '',
-        source: this.infos,
-        transformer: is => is.map(second).toString()
-    });
-    progress = transformedBuilder({
-        value: 0,
-        source: tuple(this.planCount, this.currentCount),
-        transformer: ([plan, current]) => (plan === 0 ? 0 : current / plan) * 100
-    });
+    subtaskId = 0;
+    infos;
+    planCount;
+    currentCount;
+    info;
+    progress;
+    constructor(values) {
+        this.infos = values.value('infos', []);
+        this.planCount = values.value('plan-count', 0);
+        this.currentCount = value('current-count', 0);
+        this.info = values.transformed('info', this.infos, is => is.map(second).toString());
+        this.progress = values.transformedTuple('progress', [this.planCount, this.currentCount], ([plan, current]) => (plan === 0 ? 0 : current / plan) * 100);
+    }
     plan(dc) {
         this.planCount.mod(c => c + dc);
     }
     inc(dc) {
         this.currentCount.mod(c => c + dc);
     }
-    beginTask(label) {
-        const id = this.id++;
-        this.infos.mod(is => [...is, [id, label]]);
-        return id;
+    beginSubTask(label) {
+        const subtaskId = this.subtaskId++;
+        this.infos.mod(is => [...is, [subtaskId, label]]);
+        return subtaskId;
     }
-    endTask(id) {
+    endSubTask(id) {
         this.infos.mod(is => is.filter(([itemId, _]) => id !== itemId));
     }
 }
 class TaskDescriptor {
+    name;
+    values;
     scheduler;
     tickStart;
     timer;
     stopped = false;
     pauseBarrier = new Barrier(false);
     taskImpl;
-    progressImpl = new PropgressInfoImpl();
-    paused = value('', false);
-    task = value('', progress(this.progressImpl));
-    info = this.progressImpl.info;
-    progress = this.progressImpl.progress;
-    constructor(scheduler, tickStart, timer) {
+    progressImpl;
+    paused;
+    ;
+    task;
+    info;
+    progress;
+    constructor(name, values, scheduler, tickStart, timer) {
+        this.name = name;
+        this.values = values;
         this.scheduler = scheduler;
         this.tickStart = tickStart;
         this.timer = timer;
+        this.progressImpl = new PropgressInfoImpl(values);
+        this.info = this.progressImpl.info;
+        this.progress = this.progressImpl.progress;
+        this.paused = values.value('paused', false);
+        this.task = value('task', progress(this.progressImpl));
     }
     checkStopped() { if (this.stopped)
         throw new TaskInerruptedError(); }
@@ -126,9 +136,9 @@ class TaskDescriptor {
     }
     async waitFor(promise, info = '', count = 1) {
         this.checkStopped();
-        const infoId = this.progressImpl.beginTask(info);
+        const infoId = this.progressImpl.beginSubTask(info);
         const result = await promise;
-        this.progressImpl.endTask(infoId);
+        this.progressImpl.endSubTask(infoId);
         this.progressImpl.inc(count);
         await this.pauseBarrier.wait();
         this.checkStopped();
@@ -136,11 +146,12 @@ class TaskDescriptor {
     }
     async waitForBatchTask(batch, info, time = 10) {
         this.checkStopped();
-        const infoId = this.progressImpl.beginTask(info ?? '');
+        const result = [];
+        const infoId = this.progressImpl.beginSubTask(info ?? '');
         this.plan(batch.length);
         let start = this.timer();
         for (const task of batch) {
-            task();
+            result.push(task());
             this.incProgress(1);
             if (this.timer() - start < time)
                 continue;
@@ -153,7 +164,8 @@ class TaskDescriptor {
         }
         await this.pauseBarrier.wait();
         this.checkStopped();
-        this.progressImpl.endTask(infoId);
+        this.progressImpl.endSubTask(infoId);
+        return result;
     }
     pause() { this.paused.set(true); this.pauseBarrier.block(); }
     unpause() { this.paused.set(false); this.pauseBarrier.unblock(); }
@@ -170,12 +182,19 @@ class TaskDescriptor {
 export class SchedulerImpl {
     eventloop;
     timer;
+    localValues;
     nextTick;
     tickStart = 0;
-    constructor(eventloop, timer) {
+    tasks;
+    tasksImpl;
+    lastLaskId = 0;
+    constructor(eventloop, timer, localValues) {
         this.eventloop = eventloop;
         this.timer = timer;
+        this.localValues = localValues;
         this.nextTick = this.createNextTick();
+        this.tasksImpl = this.localValues.value('tasks', []);
+        this.tasks = this.tasksImpl;
     }
     createNextTick() {
         return new Promise(ok => {
@@ -188,8 +207,10 @@ export class SchedulerImpl {
         cb();
         this.nextTick = this.createNextTick();
     }
-    exec(task) {
-        const descriptor = new TaskDescriptor(() => this.nextTick, () => this.tickStart, this.timer);
+    exec(task, name) {
+        const taskName = name ?? `task-${this.lastLaskId++}`;
+        const taskValues = this.localValues.createChild(taskName);
+        const descriptor = new TaskDescriptor(taskName, taskValues, () => this.nextTick, () => this.tickStart, this.timer);
         const wrappedTask = task(descriptor)
             .then(result => {
             const ok = new Ok(result);
@@ -200,12 +221,17 @@ export class SchedulerImpl {
             const err = new Err(error);
             descriptor.task.set(done(err));
             return err;
+        })
+            .finally(() => {
+            this.tasksImpl.mod(ts => ts.filter(t => t !== descriptor));
+            taskValues.dispose();
         });
         descriptor.setTask(wrappedTask);
+        this.tasksImpl.mod(t => [...t, descriptor]);
         return descriptor;
     }
 }
-export function DefaultScheduler(eventloop, timer) {
-    return new SchedulerImpl(eventloop, timer);
+export function DefaultScheduler(eventloop, timer, values) {
+    return new SchedulerImpl(eventloop, timer, values);
 }
 //# sourceMappingURL=scheduler.js.map

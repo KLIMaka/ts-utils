@@ -2,6 +2,7 @@ import { DefaultScheduler } from "../src/scheduler";
 import { begin } from "../src/work";
 import { getOrCreate, range } from "../src/collections";
 import { Consumer, pair } from "../src/types";
+import { ValuesContainer } from "../src/callbacks";
 
 
 async function run(cb: Consumer<number>): Promise<void> {
@@ -24,11 +25,11 @@ function count(c: number) {
 }
 
 const TIMER = () => performance.now();
-const LOGGER = (err: Error) => console.log(err)
+const VALUES = new ValuesContainer('');
 
 test('Task', async () => {
   let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER);
+  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
   const nextLoop = () => run(cb);
 
   let x = 0;
@@ -79,7 +80,7 @@ test('Task', async () => {
 
 test('Scheduler1', async () => {
   let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER);
+  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
   const nextLoop = () => run(cb);
   let barrier: Consumer<void> | undefined;
   let x = 0;
@@ -122,7 +123,7 @@ test('Scheduler1', async () => {
 
 test('Scheduler', async () => {
   let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER);
+  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
   const nextLoop = () => run(cb);
   let counter = 0;
   let x = 0;
@@ -218,7 +219,7 @@ test('Scheduler', async () => {
 
 test('Work', async () => {
   let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER);
+  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
   const nextLoop = () => run(cb);
 
   const work = begin()
@@ -337,7 +338,7 @@ test('Work', async () => {
 
 test('waitMaybe', async () => {
   let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER);
+  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
   const nextLoop = () => run(cb);
 
   let stage = 0;
@@ -349,6 +350,8 @@ test('waitMaybe', async () => {
   });
 
   expect(stage).toBe(0);
+  await nextLoop();
+  await nextLoop();
   await nextLoop();
   expect(stage).toBe(999);
 });

@@ -1,4 +1,4 @@
-import { Source } from "./callbacks";
+import { Source, ValuesContainer } from "./callbacks";
 import { Consumer, Result, Supplier } from "./types";
 export declare class TaskInerruptedError extends Error {
     constructor();
@@ -9,12 +9,13 @@ export type ProgressInfo = {
     readonly info: Source<string>;
 };
 export interface TaskHandle {
+    readonly values: ValuesContainer;
     plan(count: number): void;
     incProgress(inc: number): void;
     wait(info?: string, count?: number): Promise<void>;
     waitMaybe(dt?: number): Promise<void>;
     waitFor<T>(promise: Promise<T>, info?: string, count?: number): Promise<T>;
-    waitForBatchTask(batch: Consumer<void>[], info?: string, time?: number): Promise<void>;
+    waitForBatchTask<T>(batch: Supplier<T>[], info?: string, time?: number): Promise<T[]>;
 }
 export declare const NOOP_TASK_HANDLE: TaskHandle;
 export type TaskValue<T> = {
@@ -25,6 +26,7 @@ export type TaskValue<T> = {
 export declare function progress<T>(info: ProgressInfo): TaskValue<T>;
 export declare function done<T>(result: Result<T>): TaskValue<T>;
 export interface TaskController<T> extends ProgressInfo {
+    readonly name: string;
     readonly paused: Source<boolean>;
     readonly task: Source<TaskValue<T>>;
     pause(): void;
@@ -34,17 +36,22 @@ export interface TaskController<T> extends ProgressInfo {
 }
 export type Task<T> = (handle: TaskHandle) => Promise<T>;
 export interface Scheduler {
-    exec<T>(task: Task<T>): TaskController<T>;
+    exec<T>(task: Task<T>, name?: string): TaskController<T>;
+    tasks: Source<TaskController<any>[]>;
 }
 export declare class SchedulerImpl implements Scheduler {
     private eventloop;
     private timer;
+    private localValues;
     private nextTick;
     private tickStart;
-    constructor(eventloop: EventLoop, timer: Supplier<number>);
+    readonly tasks: Source<TaskController<any>[]>;
+    private tasksImpl;
+    private lastLaskId;
+    constructor(eventloop: EventLoop, timer: Supplier<number>, localValues: ValuesContainer);
     private createNextTick;
     private run;
-    exec<T>(task: Task<T>): TaskController<T>;
+    exec<T>(task: Task<T>, name?: string): TaskController<T>;
 }
-export declare function DefaultScheduler(eventloop: EventLoop, timer: Supplier<number>): Scheduler;
+export declare function DefaultScheduler(eventloop: EventLoop, timer: Supplier<number>, values: ValuesContainer): Scheduler;
 //# sourceMappingURL=scheduler.d.ts.map

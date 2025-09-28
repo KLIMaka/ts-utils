@@ -1,5 +1,5 @@
-import { iter } from "ts-utils/iter";
-import { first as first1 } from "ts-utils/types";
+import { iter } from "./iter";
+import { first as first1 } from "./types";
 function work(title, task) {
     return async (handle, ...input) => await handle.waitFor(task(...input), title);
 }

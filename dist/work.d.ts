@@ -1,5 +1,5 @@
-import { TaskHandle } from "scheduler";
-import { BiConsumer, First, Function } from "ts-utils/types";
+import { TaskHandle } from "./scheduler";
+import { BiConsumer, First, Function } from "./types";
 export type Work<I extends any[] = [], O = void> = (handle: TaskHandle, ...input: I) => Promise<O>;
 export declare function tuple<I extends any[], O>(work: Work<I, O>): Work<I, [O]>;
 export declare class ParallelWorkBuilder<SeqInput extends any[], ParallelInput extends any[] = []> {

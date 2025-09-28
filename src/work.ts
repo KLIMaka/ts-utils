@@ -1,6 +1,6 @@
-import { TaskHandle } from "scheduler";
-import { iter } from "ts-utils/iter";
-import { BiConsumer, First, Function, first as first1 } from "ts-utils/types";
+import { TaskHandle } from "./scheduler";
+import { iter } from "./iter";
+import { BiConsumer, First, Function, first as first1 } from "./types";
 
 export type Work<I extends any[] = [], O = void> = (handle: TaskHandle, ...input: I) => Promise<O>
 

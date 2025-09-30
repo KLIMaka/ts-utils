@@ -227,6 +227,7 @@ export function* map<T, V>(i: Iterable<T>, f: (t: T) => V): Generator<V> {
   for (const v of i) yield f(v);
 }
 
+
 export function* zip<T1, T2>(i1: Iterable<T1>, i2: Iterable<T2>): Generator<[T1, T2]> {
   const iter1 = i1[Symbol.iterator]();
   const iter2 = i2[Symbol.iterator]();
@@ -236,6 +237,15 @@ export function* zip<T1, T2>(i1: Iterable<T1>, i2: Iterable<T2>): Generator<[T1,
     yield [v1.value, v2.value];
     v1 = iter1.next();
     v2 = iter2.next();
+  }
+}
+
+export function* zipTuple<T extends any[]>(...its: Iterable<any>[]): Generator<T> {
+  const iters = its.map(i => i[Symbol.iterator]());
+  let vs = iters.map(i => i.next());
+  while (vs.every(v => !v.done)) {
+    yield vs.map(v => v.value) as T;
+    vs = iters.map(i => i.next());
   }
 }
 

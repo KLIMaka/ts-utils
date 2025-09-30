@@ -1,4 +1,4 @@
-import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range, flatMap } from "./collections";
+import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range, flatMap, zipTuple } from "./collections";
 export class Iter {
     iter;
     static of(iter) { return new Iter(iter); }
@@ -11,6 +11,8 @@ export class Iter {
     filter(f) { return new Iter(filter(this.iter, f)); }
     map(f) { return new Iter(map(this.iter, f)); }
     zip(it) { return new Iter(zip(this.iter, it)); }
+    zip2(it1, it2) { return new Iter(zipTuple(this.iter, it1, it2)); }
+    zip3(it1, it2, it3) { return new Iter(zipTuple(this.iter, it1, it2, it3)); }
     join(separator) { return new Iter(join(this.iter, separator)); }
     forEach(f) { forEach(this.iter, f); return this; }
     enumerate() { return new Iter(enumerate(this.iter)); }

@@ -1,5 +1,5 @@
 import Optional from "optional-js";
-import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, Deiterable, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range, flatMap } from "./collections";
+import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, Deiterable, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range, flatMap, zipTuple } from "./collections";
 import { Function } from "./types";
 
 export class Iter<T> implements Iterable<T> {
@@ -12,6 +12,8 @@ export class Iter<T> implements Iterable<T> {
   filter(f: (t: T) => boolean): Iter<T> { return new Iter(filter(this.iter, f)) }
   map<U>(f: (t: T) => U): Iter<U> { return new Iter(map(this.iter, f)) }
   zip<T1>(it: Iterable<T1>): Iter<[T, T1]> { return new Iter(zip(this.iter, it)) }
+  zip2<T1, T2>(it1: Iterable<T1>, it2: Iterable<T2>): Iter<[T, T1, T2]> { return new Iter(zipTuple<[T, T1, T2]>(this.iter, it1, it2)) }
+  zip3<T1, T2, T3>(it1: Iterable<T1>, it2: Iterable<T2>, it3: Iterable<T3>): Iter<[T, T1, T2, T3]> { return new Iter(zipTuple<[T, T1, T2, T3]>(this.iter, it1, it2, it3)) }
   join(separator: T): Iter<T> { return new Iter(join(this.iter, separator)) }
   forEach(f: (t: T) => void): Iter<T> { forEach(this.iter, f); return this }
   enumerate(): Iter<[T, number]> { return new Iter(enumerate(this.iter)) }

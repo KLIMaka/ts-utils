@@ -1,4 +1,4 @@
-import { Deck, IndexedDeck, all, cyclicPairs, cyclicRange, enumerate, findFirst, first, flatten, isEmpty, last, map, slidingPairs, range, rect, reduce, reversed, sub, take, wrap, slidingWindow, groups, Ring, flatMap } from "../src/collections";
+import { Deck, IndexedDeck, all, cyclicPairs, cyclicRange, enumerate, findFirst, first, flatten, isEmpty, last, map, slidingPairs, range, rect, reduce, reversed, sub, take, wrap, slidingWindow, groups, Ring, flatMap, zip, zipTuple } from "../src/collections";
 import { SortedList } from "../src/list";
 import { rand0 } from "../src/random";
 
@@ -147,6 +147,11 @@ test('Utils', () => {
   expect(findFirst([1, 2, 3], x => x === 42).isPresent()).toBe(false);
   expect(findFirst([1, 2, 3], x => x === 3).get()).toBe(3);
   expect([...flatMap([1, 2, 3, 4], x => [x * 2, x * 3])]).toStrictEqual([2, 3, 4, 6, 6, 9, 8, 12]);
+  expect([...flatMap([1, 2, 3, 4], x => [x * 2, x * 3])]).toStrictEqual([2, 3, 4, 6, 6, 9, 8, 12]);
+  expect([...zip([1, 2, 3], ['a', 'b', 'c'])]).toStrictEqual([[1, 'a'], [2, 'b'], [3, 'c']]);
+  expect([...zip([1], ['a', 'b', 'c'])]).toStrictEqual([[1, 'a']]);
+  expect([...zip([], ['a', 'b', 'c'])]).toStrictEqual([]);
+  expect([...zipTuple([1, 2, 3], ['a', 'b', 'c'], [.1, .2, .3])]).toStrictEqual([[1, 'a', .1], [2, 'b', .2], [3, 'c', .3]]);
 });
 
 test('Sorted List', () => {

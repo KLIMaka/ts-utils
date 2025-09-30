@@ -210,6 +210,14 @@ export function* zip(i1, i2) {
         v2 = iter2.next();
     }
 }
+export function* zipTuple(...its) {
+    const iters = its.map(i => i[Symbol.iterator]());
+    let vs = iters.map(i => i.next());
+    while (vs.every(v => !v.done)) {
+        yield vs.map(v => v.value);
+        vs = iters.map(i => i.next());
+    }
+}
 export function forEach(i, f) {
     for (const v of i)
         f(v);

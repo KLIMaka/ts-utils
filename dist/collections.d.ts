@@ -75,6 +75,7 @@ export declare function length<T>(it: Iterable<T>): number;
 export declare function filter<T>(i: Iterable<T>, f: (t: T) => boolean): Generator<T>;
 export declare function map<T, V>(i: Iterable<T>, f: (t: T) => V): Generator<V>;
 export declare function zip<T1, T2>(i1: Iterable<T1>, i2: Iterable<T2>): Generator<[T1, T2]>;
+export declare function zipTuple<T extends any[]>(...its: Iterable<any>[]): Generator<T>;
 export declare function forEach<T>(i: Iterable<T>, f: (t: T) => void): void;
 export declare function reduce<T>(i: Iterable<T>, f: (lh: T, rh: T) => T, start: T): T;
 export declare function reduceFirst<T>(i: Iterable<T>, f: BiFunction<T, T, T>): Optional<T>;

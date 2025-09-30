@@ -1,6 +1,6 @@
 
 export class LexerRule {
-  public id: number = null;
+  public id: number | null = null;
   constructor(
     public pattern: RegExp,
     public name: string,
@@ -12,7 +12,7 @@ export class LexerRule {
 export class Lexer {
   private rulesIndex = new Map<string, LexerRule>();
   private rules: LexerRule[] = [];
-  private src: string;
+  private src: string | undefined;
   private offset = 0;
   private lastOffset = 0;
   private eoi = false;

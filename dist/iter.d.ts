@@ -10,6 +10,8 @@ export declare class Iter<T> implements Iterable<T> {
     filter(f: (t: T) => boolean): Iter<T>;
     map<U>(f: (t: T) => U): Iter<U>;
     zip<T1>(it: Iterable<T1>): Iter<[T, T1]>;
+    zip2<T1, T2>(it1: Iterable<T1>, it2: Iterable<T2>): Iter<[T, T1, T2]>;
+    zip3<T1, T2, T3>(it1: Iterable<T1>, it2: Iterable<T2>, it3: Iterable<T3>): Iter<[T, T1, T2, T3]>;
     join(separator: T): Iter<T>;
     forEach(f: (t: T) => void): Iter<T>;
     enumerate(): Iter<[T, number]>;

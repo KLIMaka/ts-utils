@@ -3,7 +3,6 @@ export class LexerRule {
     name;
     mid;
     conv;
-    id = null;
     constructor(pattern, name, mid = 0, conv = (s) => s) {
         this.pattern = pattern;
         this.name = name;
@@ -11,6 +10,7 @@ export class LexerRule {
         this.conv = conv;
     }
 }
+export const EOI = { type: 'eoi' };
 export class Lexer {
     rulesIndex = new Map();
     rules = [];
@@ -18,18 +18,13 @@ export class Lexer {
     offset = 0;
     lastOffset = 0;
     eoi = false;
-    matchedRule = null;
-    matchedValue = null;
     addRule(rule) {
         const r = this.rulesIndex.get(rule.name);
-        if (r === undefined) {
-            rule.id = this.rules.length;
+        if (r === undefined)
             this.rules.push(rule);
-        }
-        else {
+        else
             throw new Error('Rule ' + rule.name + ' already exist');
-        }
-        this.rulesIndex.set(rule.name, rule);
+        this.rulesIndex.set(rule.name, { id: this.rules.length, rule });
         return this;
     }
     add(pattern, name, mid = 0, conv = s => s) {
@@ -50,10 +45,12 @@ export class Lexer {
         this.eoi = false;
     }
     exec() {
+        if (this.src === undefined)
+            throw new Error();
         if (this.offset >= this.src.length)
             this.eoi = true;
         if (this.eoi)
-            return null;
+            return EOI;
         let len = 0;
         let matchedValue = null;
         let matchedRule = null;
@@ -66,22 +63,14 @@ export class Lexer {
                 len = match[0].length;
             }
         }
-        this.matchedRule = matchedRule;
-        this.matchedValue = matchedValue;
         this.lastOffset = this.offset;
         this.offset += len;
         if (matchedRule == null)
             throw new Error('Unexpected input "' + subsrc.substring(0, 10) + '..."');
-        return matchedRule.name;
+        return { type: 'rule', rule: matchedRule.name, value: matchedValue?.[matchedRule.mid] };
     }
     next() {
         return this.exec();
-    }
-    rule() {
-        return this.matchedRule;
-    }
-    value() {
-        return this.rule()?.conv(this.matchedValue?.[this.rule().mid]);
     }
     isEoi() {
         return this.eoi;

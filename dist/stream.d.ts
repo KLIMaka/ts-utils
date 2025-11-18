@@ -1,4 +1,4 @@
-import { Supplier } from "./types";
+import { Supplier, Function } from "./types";
 export declare class Stream {
     private view;
     private offset;
@@ -47,6 +47,7 @@ export interface Accessor<T> {
     readonly write: ScalarWriter<T>;
     readonly size: number;
 }
+export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
 type AtomicArrayConstructor<T> = {
     new (buffer: ArrayBuffer, byteOffset: number, length: number): T;
 };
@@ -63,11 +64,14 @@ export declare const float: AtomicReader<number, Float32Array<ArrayBuffer>>;
 export declare const string: (len: number) => Accessor<string>;
 export declare const bits: (len: number) => Accessor<number>;
 export declare const bits_signed: (len: number) => Accessor<number>;
-export declare const bit: () => Accessor<boolean>;
+export declare const bit: Accessor<boolean>;
 export declare const array: <T>(type: Accessor<T>, len: number) => Accessor<T[]>;
 export declare const atomic_array: <T>(type: AtomicReader<any, T>, len: number) => Accessor<T>;
-export declare const struct: <T>(type?: Supplier<T>) => StructBuilder<T>;
-declare class StructBuilder<T> implements Accessor<T> {
+export declare const struct: <T>(type?: Supplier<T>) => StructBuilderFromType<T>;
+export declare const builder: () => StructBuilder<unknown>;
+export declare const transformed: <Stored, Actual>(stored: Accessor<Stored>, to: Function<Actual, Stored>, from: Function<Stored, Actual>) => Accessor<Actual>;
+type Field<T, F extends keyof T = any> = [keyof T, Accessor<T[F]>];
+declare class StructBuilderFromType<T> implements Accessor<T> {
     private ctr?;
     private fields;
     size: number;
@@ -75,6 +79,14 @@ declare class StructBuilder<T> implements Accessor<T> {
     field<V extends keyof T>(f: V, r: Accessor<T[V]>): this;
     read(s: Stream): T;
     write(s: Stream, value: T): void;
+}
+declare class StructBuilder<T> {
+    private fields;
+    constructor(fields?: Field<any>[]);
+    field<K extends string, T1>(name: K, accessor: Accessor<T1>): StructBuilder<T & {
+        [P in K]: T1;
+    }>;
+    build(): Accessor<T>;
 }
 export {};
 //# sourceMappingURL=stream.d.ts.map

@@ -1,6 +1,5 @@
 
 export class LexerRule {
-  public id: number | null = null;
   constructor(
     public pattern: RegExp,
     public name: string,
@@ -9,27 +8,24 @@ export class LexerRule {
   ) { }
 }
 
+type LexerRuleId = { id: number, rule: LexerRule };
+
+export type LexerMatch = { type: 'rule', rule: string, value: any } | { type: 'eoi' };
+export const EOI: LexerMatch = { type: 'eoi' };
+
 export class Lexer {
-  private rulesIndex = new Map<string, LexerRule>();
+  private rulesIndex = new Map<string, LexerRuleId>();
   private rules: LexerRule[] = [];
   private src: string | undefined;
   private offset = 0;
   private lastOffset = 0;
   private eoi = false;
 
-  private matchedRule: LexerRule | null = null;
-  private matchedValue: RegExpMatchArray | null = null;
-
   addRule(rule: LexerRule): this {
     const r = this.rulesIndex.get(rule.name);
-    if (r === undefined) {
-      rule.id = this.rules.length;
-      this.rules.push(rule);
-    } else {
-      throw new Error('Rule ' + rule.name + ' already exist');
-    }
-
-    this.rulesIndex.set(rule.name, rule);
+    if (r === undefined) this.rules.push(rule);
+    else throw new Error('Rule ' + rule.name + ' already exist');
+    this.rulesIndex.set(rule.name, { id: this.rules.length, rule });
     return this;
   }
 
@@ -41,7 +37,7 @@ export class Lexer {
     return this.lastOffset;
   }
 
-  reset(offset: number = 0): string {
+  reset(offset: number = 0): LexerMatch {
     this.offset = offset;
     this.lastOffset = offset;
     this.eoi = false;
@@ -54,9 +50,10 @@ export class Lexer {
     this.eoi = false;
   }
 
-  private exec(): string {
+  private exec(): LexerMatch {
+    if (this.src === undefined) throw new Error();
     if (this.offset >= this.src.length) this.eoi = true;
-    if (this.eoi) return null;
+    if (this.eoi) return EOI;
 
     let len = 0;
     let matchedValue = null;
@@ -71,27 +68,17 @@ export class Lexer {
       }
     }
 
-    this.matchedRule = matchedRule;
-    this.matchedValue = matchedValue;
     this.lastOffset = this.offset;
     this.offset += len;
 
     if (matchedRule == null)
       throw new Error('Unexpected input "' + subsrc.substring(0, 10) + '..."');
 
-    return matchedRule.name;
+    return { type: 'rule', rule: matchedRule.name, value: matchedValue?.[matchedRule.mid] };
   }
 
-  next(): string {
+  next(): LexerMatch {
     return this.exec()
-  }
-
-  rule(): LexerRule | null {
-    return this.matchedRule;
-  }
-
-  value(): any {
-    return this.rule()?.conv(this.matchedValue?.[this.rule().mid]);
   }
 
   isEoi(): boolean {

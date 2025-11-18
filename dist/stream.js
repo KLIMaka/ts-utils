@@ -1,3 +1,4 @@
+import { sum } from "./mathutils";
 export class Stream {
     view;
     offset;
@@ -202,10 +203,12 @@ export const float = atomicReader(s => s.readFloat(), (s, v) => s.writeFloat(v),
 export const string = (len) => accessor(s => s.readByteString(len), (s, v) => s.writeByteString(len, v), len);
 export const bits = (len) => accessor(s => s.readBits(len), (s, v) => s.writeBits(len, v), Math.abs(len) / 8);
 export const bits_signed = (len) => accessor(s => s.readBitsSigned(len), (s, v) => s.writeBits(len, v), Math.abs(len) / 8);
-export const bit = () => accessor(s => s.readBits(1) === 1, (s, v) => s.writeBits(1, v ? 1 : 0), 1 / 8);
+export const bit = accessor(s => s.readBits(1) === 1, (s, v) => s.writeBits(1, v ? 1 : 0), 1 / 8);
 export const array = (type, len) => accessor(s => readArray(s, type, len), (s, v) => writeArray(s, type, len, v), type.size * len);
 export const atomic_array = (type, len) => accessor(s => readAtomicArray(s, type, len), (s, v) => writeAtomicArray(s, type, len, v), type.size * len);
-export const struct = (type) => new StructBuilder(type);
+export const struct = (type) => new StructBuilderFromType(type);
+export const builder = () => new StructBuilder();
+export const transformed = (stored, to, from) => accessor(s => from(stored.read(s)), (s, v) => stored.write(s, to(v)), stored.size);
 const readArray = (s, type, len) => {
     const arr = new Array();
     for (let i = 0; i < len; i++)
@@ -224,7 +227,7 @@ const readAtomicArray = (s, type, len) => {
 const writeAtomicArray = (s, type, len, value) => {
     s.writeArrayBuffer(value.buffer, len);
 };
-class StructBuilder {
+class StructBuilderFromType {
     ctr;
     fields = [];
     size = 0;
@@ -243,6 +246,26 @@ class StructBuilder {
     }
     write(s, value) {
         this.fields.forEach(([name, accessor]) => accessor.write(s, value[name]));
+    }
+}
+class StructBuilder {
+    fields;
+    constructor(fields = []) {
+        this.fields = fields;
+    }
+    field(name, accessor) {
+        this.fields.push([name, accessor]);
+        return new StructBuilder(this.fields);
+    }
+    build() {
+        const read = (s) => {
+            const struct = {};
+            this.fields.forEach(([name, reader]) => struct[name] = reader.read(s));
+            return struct;
+        };
+        const write = (s, value) => this.fields.forEach(([name, accessor]) => accessor.write(s, value[name]));
+        const size = this.fields.map(([_, r]) => r.size).reduce(sum);
+        return { read, write, size };
     }
 }
 //# sourceMappingURL=stream.js.map

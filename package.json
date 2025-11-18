@@ -25,7 +25,6 @@
     "./objects": "./dist/objects.js",
     "./pixelprovider": "./dist/pixelprovider.js",
     "./random": "./dist/random.js",
-    "./rasterizer": "./dist/rasterizer.js",
     "./size": "./dist/size.js",
     "./stream": "./dist/stream.js",
     "./texcoordpacker": "./dist/texcoordpacker.js",
@@ -96,9 +95,6 @@
       ],
       "random": [
         "./dist/random.d.ts"
-      ],
-      "rasterizer": [
-        "./dist/rasterizer.d.ts"
       ],
       "size": [
         "./dist/size.d.ts"

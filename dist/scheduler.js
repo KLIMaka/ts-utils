@@ -1,5 +1,6 @@
+import { printTime } from "./time";
 import { value, ValuesContainer } from "./callbacks";
-import { Err, Ok, second } from "./types";
+import { Err, Ok } from "./types";
 export class TaskInerruptedError extends Error {
     constructor() { super('Task Interrupted'); }
 }
@@ -54,19 +55,80 @@ class Barrier {
         this.err(err);
     } }
 }
+class ProgressEstimator {
+    alpha;
+    ema;
+    sumDone = 0;
+    countDone = 0;
+    lastPercent = 0;
+    constructor(alpha = 0.2) {
+        this.alpha = alpha;
+    }
+    observeTask(duration) {
+        if (this.ema === undefined)
+            this.ema = duration;
+        else
+            this.ema = this.alpha * duration + (1 - this.alpha) * this.ema;
+        this.sumDone += duration;
+        this.countDone += 1;
+    }
+    progress(remainingCount) {
+        if (this.countDone === 0)
+            return 0;
+        const estRemaining = (this.ema === undefined ? (this.sumDone / this.countDone) : this.ema) * remainingCount;
+        const pct = this.sumDone / (this.sumDone + estRemaining) * 100;
+        const capped = Math.max(this.lastPercent, pct);
+        this.lastPercent = capped;
+        return capped;
+    }
+}
 class PropgressInfoImpl {
+    timer;
+    alpha;
     subtaskId = 0;
     infos;
     planCount;
     currentCount;
     info;
     progress;
-    constructor(values) {
+    lastTime;
+    totalTime = 0;
+    ema;
+    constructor(values, timer, alpha = 0.2) {
+        this.timer = timer;
+        this.alpha = alpha;
+        this.lastTime = timer();
         this.infos = values.value('infos', []);
         this.planCount = values.value('plan-count', 0);
         this.currentCount = value('current-count', 0);
-        this.info = values.transformed('info', this.infos, is => is.map(second).toString());
-        this.progress = values.transformedTuple('progress', [this.planCount, this.currentCount], ([plan, current]) => (plan === 0 ? 0 : current / plan) * 100);
+        this.progress = values.transformedTuple('progress', [this.planCount, this.currentCount], ([plan, current]) => {
+            const remaining = plan - current;
+            const now = this.timer();
+            const dt = now - this.lastTime;
+            this.lastTime = now;
+            if (this.ema === undefined)
+                this.ema = dt;
+            else
+                this.ema = this.alpha * dt + (1 - this.alpha) * this.ema;
+            this.totalTime += dt;
+            const estRemaining = (this.ema === undefined ? (this.totalTime / current) : this.ema) * remaining;
+            return this.totalTime / (this.totalTime + estRemaining) * 100;
+        });
+        this.info = values.transformedTuple('info', [this.planCount, this.currentCount, this.infos], ([plan, current, is]) => {
+            const remaining = plan - current;
+            const now = this.timer();
+            const dt = now - this.lastTime;
+            this.lastTime = now;
+            if (this.ema === undefined)
+                this.ema = dt;
+            else
+                this.ema = this.alpha * dt + (1 - this.alpha) * this.ema;
+            this.totalTime += dt;
+            const estRemaining = (this.ema === undefined ? (this.totalTime / current) : this.ema) * remaining;
+            const prc = this.totalTime / (this.totalTime + estRemaining) * 100;
+            return `${prc.toFixed(0)}% rem=${remaining}, ema=${printTime(this.ema)} per Task,  total=${printTime(this.totalTime)}, estRem=${printTime(estRemaining)}`;
+            // is.map(second).toString());
+        });
     }
     plan(dc) {
         this.planCount.mod(c => c + dc);
@@ -104,7 +166,7 @@ class TaskDescriptor {
         this.scheduler = scheduler;
         this.tickStart = tickStart;
         this.timer = timer;
-        this.progressImpl = new PropgressInfoImpl(values);
+        this.progressImpl = new PropgressInfoImpl(values, timer);
         this.info = this.progressImpl.info;
         this.progress = this.progressImpl.progress;
         this.paused = values.value('paused', false);

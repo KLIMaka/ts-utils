@@ -1,4 +1,5 @@
-import { Supplier } from "./types";
+import { sum } from "./mathutils";
+import { Supplier, Function } from "./types";
 
 export class Stream {
   private view: DataView<ArrayBuffer>;
@@ -225,6 +226,8 @@ export interface Accessor<T> {
   readonly size: number;
 }
 
+export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
+
 type AtomicArrayConstructor<T> = { new(buffer: ArrayBuffer, byteOffset: number, length: number): T };
 
 export interface AtomicReader<T, AT> extends Accessor<T> {
@@ -249,10 +252,13 @@ export const float = atomicReader<number, Float32Array<ArrayBuffer>>(s => s.read
 export const string = (len: number) => accessor(s => s.readByteString(len), (s, v) => s.writeByteString(len, v), len);
 export const bits = (len: number) => accessor(s => s.readBits(len), (s, v) => s.writeBits(len, v), Math.abs(len) / 8);
 export const bits_signed = (len: number) => accessor(s => s.readBitsSigned(len), (s, v) => s.writeBits(len, v), Math.abs(len) / 8);
-export const bit = () => accessor(s => s.readBits(1) === 1, (s, v) => s.writeBits(1, v ? 1 : 0), 1 / 8);
+export const bit = accessor(s => s.readBits(1) === 1, (s, v) => s.writeBits(1, v ? 1 : 0), 1 / 8)
 export const array = <T>(type: Accessor<T>, len: number) => accessor(s => readArray(s, type, len), (s, v) => writeArray(s, type, len, v), type.size * len);
 export const atomic_array = <T>(type: AtomicReader<any, T>, len: number) => accessor(s => readAtomicArray(s, type, len), (s, v) => writeAtomicArray(s, type, len, v), type.size * len);
-export const struct = <T>(type?: Supplier<T>) => new StructBuilder(type);
+export const struct = <T>(type?: Supplier<T>) => new StructBuilderFromType(type);
+export const builder = () => new StructBuilder();
+export const transformed = <Stored, Actual>(stored: Accessor<Stored>, to: Function<Actual, Stored>, from: Function<Stored, Actual>) =>
+  accessor(s => from(stored.read(s)), (s, v) => stored.write(s, to(v)), stored.size);
 
 const readArray = <T>(s: Stream, type: Accessor<T>, len: number): Array<T> => {
   const arr = new Array<T>();
@@ -277,7 +283,7 @@ const writeAtomicArray = <T>(s: Stream, type: AtomicReader<any, T>, len: number,
 
 type Field<T, F extends keyof T = any> = [keyof T, Accessor<T[F]>];
 
-class StructBuilder<T> implements Accessor<T> {
+class StructBuilderFromType<T> implements Accessor<T> {
   private fields: Field<T>[] = [];
   public size = 0;
   constructor(private ctr?: Supplier<T>) { }
@@ -296,6 +302,26 @@ class StructBuilder<T> implements Accessor<T> {
 
   write(s: Stream, value: T) {
     this.fields.forEach(([name, accessor]) => accessor.write(s, value[name]));
+  }
+}
+
+class StructBuilder<T> {
+  constructor(private fields: Field<any>[] = []) { }
+
+  field<K extends string, T1>(name: K, accessor: Accessor<T1>): StructBuilder<T & { [P in K]: T1 }> {
+    this.fields.push([name, accessor]);
+    return new StructBuilder<T & { [P in K]: T1 }>(this.fields);
+  }
+
+  build(): Accessor<T> {
+    const read = (s: Stream) => {
+      const struct = {} as T;
+      this.fields.forEach(([name, reader]) => struct[name as keyof T] = reader.read(s));
+      return struct;
+    }
+    const write = (s: Stream, value: T) => this.fields.forEach(([name, accessor]) => accessor.write(s, value[name as keyof T]));
+    const size = this.fields.map(([_, r]) => r.size).reduce(sum);
+    return { read, write, size };
   }
 }
 

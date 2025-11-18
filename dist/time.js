@@ -46,12 +46,4 @@ export class StopWatch {
         return printTime(this.get());
     }
 }
-export function debounced(f, delayMs) {
-    let timeoutId;
-    return () => {
-        if (timeoutId)
-            clearTimeout(timeoutId);
-        timeoutId = setTimeout(f, delayMs);
-    };
-}
 //# sourceMappingURL=time.js.map

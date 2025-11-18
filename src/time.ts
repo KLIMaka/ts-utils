@@ -51,11 +51,3 @@ export class StopWatch {
     return printTime(this.get());
   }
 }
-
-export function debounced(f: Consumer<void>, delayMs: number) {
-  let timeoutId: number | undefined;
-  return () => {
-    if (timeoutId) clearTimeout(timeoutId);
-    timeoutId = setTimeout(f, delayMs);
-  }
-}

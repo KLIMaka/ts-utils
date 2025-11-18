@@ -1,9 +1,8 @@
-export declare class Node<T> {
+export type Node<T> = {
     obj: T;
     next: Node<T>;
     prev: Node<T>;
-    constructor(obj?: T, next?: Node<T>, prev?: Node<T>);
-}
+};
 export declare class List<T> implements Iterable<T> {
     private nil;
     constructor();
@@ -24,7 +23,9 @@ export declare class List<T> implements Iterable<T> {
     [Symbol.iterator](): Iterator<T>;
 }
 export declare class FastList<T> implements Iterable<T> {
-    private elements;
+    private values;
+    private ptrs;
+    length: number;
     constructor();
     private static nextOff;
     private static lastOff;
@@ -32,7 +33,6 @@ export declare class FastList<T> implements Iterable<T> {
     insertBefore(value: T, before?: number): number;
     remove(idx: number): T;
     clear(): void;
-    length(): number;
     get(idx: number): T;
     next(idx: number): number;
     last(idx: number): number;
@@ -40,16 +40,6 @@ export declare class FastList<T> implements Iterable<T> {
     pop(): T;
     first(): number;
     isEmpty(): boolean;
-    [Symbol.iterator](): Iterator<T>;
-}
-export declare class SortedList<T> implements Iterable<T> {
-    private values;
-    add(value: T, sortValue: number): void;
-    clear(): void;
-    get(): Iterable<T>;
-    isEmpty(): boolean;
-    first(): T;
-    private binaryIndexOf;
     [Symbol.iterator](): Iterator<T>;
 }
 //# sourceMappingURL=list.d.ts.map

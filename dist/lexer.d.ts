@@ -3,9 +3,16 @@ export declare class LexerRule {
     name: string;
     mid: number;
     conv: (s: string) => any;
-    id: number;
     constructor(pattern: RegExp, name: string, mid?: number, conv?: (s: string) => any);
 }
+export type LexerMatch = {
+    type: 'rule';
+    rule: string;
+    value: any;
+} | {
+    type: 'eoi';
+};
+export declare const EOI: LexerMatch;
 export declare class Lexer {
     private rulesIndex;
     private rules;
@@ -13,17 +20,13 @@ export declare class Lexer {
     private offset;
     private lastOffset;
     private eoi;
-    private matchedRule;
-    private matchedValue;
     addRule(rule: LexerRule): this;
     add(pattern: RegExp, name: string, mid?: number, conv?: (s: string) => any): this;
     mark(): number;
-    reset(offset?: number): string;
+    reset(offset?: number): LexerMatch;
     setSource(src: string): void;
     private exec;
-    next(): string;
-    rule(): LexerRule | null;
-    value(): any;
+    next(): LexerMatch;
     isEoi(): boolean;
 }
 //# sourceMappingURL=lexer.d.ts.map

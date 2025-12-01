@@ -15,7 +15,7 @@ function passTuple(work) {
 function seq(tasks, defaultInput) {
     return async (handle, ...input) => {
         let result = input.length === 0 ? (defaultInput ?? []) : input;
-        handle.plan(tasks.length);
+        handle = handle.fork(tasks.length);
         for (const task of tasks)
             result = await task(handle, ...result);
         return result;
@@ -23,7 +23,7 @@ function seq(tasks, defaultInput) {
 }
 function parallel(tasks) {
     return async (handle, ...input) => {
-        handle.plan(tasks.length);
+        handle = handle.fork(tasks.length);
         return Promise.all(tasks.map(t => t(handle, ...input)));
     };
 }

@@ -15,22 +15,19 @@ export type ProgressInfo = {
 
 export interface TaskHandle {
   readonly values: ValuesContainer;
-  plan(count: number): void;
-  incProgress(inc: number): void;
-  wait(info?: string, count?: number): Promise<void>;
-  waitMaybe(dt?: number): Promise<void>;
-  waitFor<T>(promise: Promise<T>, info?: string, count?: number): Promise<T>;
-  waitForBatchTask<T>(batch: Supplier<T>[], info?: string, time?: number): Promise<T[]>;
+  fork(count: number): TaskHandle;
+  
+  wait(info?: string, dt?: number): Promise<void>;
+  waitMaybe(info?: string, dt?: number): Promise<void>;
+  waitFor<T>(promise: Promise<T>, info?: string): Promise<T>;
 }
 
 export const NOOP_TASK_HANDLE: TaskHandle = {
   values: new ValuesContainer(''),
-  plan: (count: number) => { },
-  incProgress: (count: number) => { },
-  wait: (info?: string, count?: number) => Promise.resolve(),
-  waitMaybe: () => Promise.resolve(),
-  waitFor: <T>(promise: Promise<T>, info?: string, count?: number) => promise,
-  waitForBatchTask: async <T>(batch: Supplier<T>[], info?: string, time?: number) => batch.map(b => b()),
+  fork: (count: number): TaskHandle => NOOP_TASK_HANDLE,
+  wait: (info?: string, dt?: number) => Promise.resolve(),
+  waitMaybe: (info?: string, dt?: number): Promise<void> => Promise.resolve(),
+  waitFor: <T>(promise: Promise<T>, info?: string) => promise,
 }
 
 export type TaskValue<T> = {
@@ -95,88 +92,25 @@ class Barrier {
   unblock() { if (this.blocked) this.releaseBarrier() }
   error(err: Error) { if (this.blocked) { if (this.err === undefined) throw new Error(''); this.err(err) } }
 }
-
-class ProgressEstimator {
-  private ema: number | undefined;
-  private sumDone: number = 0;
-  private countDone: number = 0;
-  private lastPercent: number = 0;
-
-  constructor(
-    private alpha = 0.2
-  ) { }
-
-  observeTask(duration: number) {
-    if (this.ema === undefined) this.ema = duration;
-    else this.ema = this.alpha * duration + (1 - this.alpha) * this.ema;
-    this.sumDone += duration;
-    this.countDone += 1;
-  }
-
-  progress(remainingCount: number): number {
-    if (this.countDone === 0) return 0;
-    const estRemaining = (this.ema === undefined ? (this.sumDone / this.countDone) : this.ema) * remainingCount;
-    const pct = this.sumDone / (this.sumDone + estRemaining) * 100;
-    const capped = Math.max(this.lastPercent, pct);
-    this.lastPercent = capped;
-    return capped;
-  }
-}
-
 class PropgressInfoImpl implements ProgressInfo {
   private subtaskId = 0;
   private infos: Value<[number, string][]>;
-  private planCount: Value<number>;
-  private currentCount: Value<number>;
+  private current: Value<number>;
   readonly info: Value<string>;
   readonly progress: Source<number>;
 
-  private lastTime: number;
-  private totalTime = 0;
-  private ema: number | undefined;
 
   constructor(
     values: ValuesContainer,
-    private timer: Supplier<number>,
-    private alpha = 0.2,
   ) {
-    this.lastTime = timer();
     this.infos = values.value<[number, string][]>('infos', []);
-    this.planCount = values.value('plan-count', 0);
-    this.currentCount = value('current-count', 0);
-    this.progress = values.transformedTuple('progress', [this.planCount, this.currentCount], ([plan, current]) => {
-      const remaining = plan - current;
-      const now = this.timer();
-      const dt = now - this.lastTime;
-      this.lastTime = now;
-      if (this.ema === undefined) this.ema = dt;
-      else this.ema = this.alpha * dt + (1 - this.alpha) * this.ema;
-      this.totalTime += dt;
-      const estRemaining = (this.ema === undefined ? (this.totalTime / current) : this.ema) * remaining;
-      return this.totalTime / (this.totalTime + estRemaining) * 100;
-    });
-    this.info = values.transformedTuple('info', [this.planCount, this.currentCount, this.infos], ([plan, current, is]) => {
-      const remaining = plan - current;
-      const now = this.timer();
-      const dt = now - this.lastTime;
-      this.lastTime = now;
-      if (this.ema === undefined) this.ema = dt;
-      else this.ema = this.alpha * dt + (1 - this.alpha) * this.ema;
-      this.totalTime += dt;
-      const estRemaining = (this.ema === undefined ? (this.totalTime / current) : this.ema) * remaining;
-      const prc = this.totalTime / (this.totalTime + estRemaining) * 100;
-      return `${prc.toFixed(0)}% rem=${remaining}, ema=${printTime(this.ema)} per Task,  total=${printTime(this.totalTime)}, estRem=${printTime(estRemaining)}`
-
-      // is.map(second).toString());
-    });
-  }
-
-  plan(dc: number) {
-    this.planCount.mod(c => c + dc);
+    this.current = value('current', 0);
+    this.progress = values.transformed('progress', this.current, c => c * 100);
+    this.info = values.transformedTuple('info', [this.current, this.infos], ([current, is]) => is.map(second).toString());
   }
 
   inc(dc: number) {
-    this.currentCount.mod(c => c + dc);
+    this.current.mod(c => c + dc);
   }
 
   beginSubTask(label: string): number {
@@ -190,13 +124,37 @@ class PropgressInfoImpl implements ProgressInfo {
   }
 }
 
-class TaskDescriptor<T> implements TaskController<T>, TaskHandle {
+class ForkedTaskHandle implements TaskHandle {
+  constructor(
+    private handle: TaskDescriptor<any>,
+    private weight: number,
+    readonly values = handle.values,
+  ) { }
+
+  fork(count: number): TaskHandle {
+    return new ForkedTaskHandle(this.handle, this.weight / count);
+  }
+
+  wait(info?: string): Promise<void> {
+    return this.handle.wait(this.weight, info);
+  }
+
+  waitMaybe(info?: string, dt?: number): Promise<void> {
+    return this.handle.waitMaybe(this.weight, info, dt);
+  }
+
+  waitFor<T>(promise: Promise<T>, info?: string): Promise<T> {
+    return this.handle.waitFor(this.weight, promise, info);
+  }
+}
+
+class TaskDescriptor<T> implements TaskController<T> {
   private stopped = false;
   private pauseBarrier = new Barrier(false);
   private taskImpl: Promise<Result<T>> | undefined;
   private progressImpl: PropgressInfoImpl;
 
-  readonly paused: Value<boolean>;;
+  readonly paused: Value<boolean>;
   readonly task: Value<TaskValue<T>>;
   readonly info: Source<string>;
   readonly progress: Source<number>;
@@ -208,7 +166,7 @@ class TaskDescriptor<T> implements TaskController<T>, TaskHandle {
     private tickStart: Supplier<number>,
     private timer: Supplier<number>
   ) {
-    this.progressImpl = new PropgressInfoImpl(values, timer);
+    this.progressImpl = new PropgressInfoImpl(values);
     this.info = this.progressImpl.info;
     this.progress = this.progressImpl.progress;
     this.paused = values.value('paused', false);
@@ -218,65 +176,59 @@ class TaskDescriptor<T> implements TaskController<T>, TaskHandle {
 
   private checkStopped() { if (this.stopped) throw new TaskInerruptedError() }
 
-  plan(count: number): void {
-    this.progressImpl.plan(count);
-  }
-
-  incProgress(inc: number): void {
-    this.progressImpl.inc(inc);
-  }
-
-  async wait(info: string = '', count: number = 1): Promise<void> {
+  async wait(weight: number, info: string = ''): Promise<void> {
     this.checkStopped();
     this.progressImpl.info.set(info);
     await this.scheduler();
     await this.pauseBarrier.wait();
     this.checkStopped();
-    this.progressImpl.inc(count);
+    this.progressImpl.inc(weight);
   }
 
-  async waitMaybe(dt = 10): Promise<void> {
+  async waitMaybe(weight: number, info: string = '', dtMs = 10): Promise<void> {
     this.checkStopped();
-    if (this.timer() - this.tickStart() < dt) return Promise.resolve();
+    if (this.timer() - this.tickStart() < dtMs) return Promise.resolve();
+    this.progressImpl.info.set(info);
     await this.scheduler();
     await this.pauseBarrier.wait();
+    this.progressImpl.inc(weight);
     this.checkStopped();
   }
 
-  async waitFor<T>(promise: Promise<T>, info: string = '', count: number = 1): Promise<T> {
+  async waitFor<T>(weight: number, promise: Promise<T>, info: string = ''): Promise<T> {
     this.checkStopped();
     const infoId = this.progressImpl.beginSubTask(info);
     const result = await promise;
     this.progressImpl.endSubTask(infoId);
-    this.progressImpl.inc(count);
+    this.progressImpl.inc(weight);
     await this.pauseBarrier.wait();
     this.checkStopped();
     return result;
   }
 
-  async waitForBatchTask<T>(batch: Supplier<T>[], info?: string, time = 10): Promise<T[]> {
-    this.checkStopped();
-    const result: T[] = [];
-    const infoId = this.progressImpl.beginSubTask(info ?? '');
-    this.plan(batch.length);
-    let start = this.timer();
-    for (const task of batch) {
-      result.push(task());
-      this.incProgress(1);
+  // async waitForBatchTask<T>(batch: Supplier<T>[], info?: string, time = 10): Promise<T[]> {
+  //   this.checkStopped();
+  //   const result: T[] = [];
+  //   const infoId = this.progressImpl.beginSubTask(info ?? '');
+  //   this.plan(batch.length);
+  //   let start = this.timer();
+  //   for (const task of batch) {
+  //     result.push(task());
+  //     this.incProgress(1);
 
-      if (this.timer() - start < time) continue;
-      else {
-        await this.scheduler();
-        await this.pauseBarrier.wait();
-        this.checkStopped();
-        start = this.timer();
-      }
-    }
-    await this.pauseBarrier.wait();
-    this.checkStopped();
-    this.progressImpl.endSubTask(infoId);
-    return result;
-  }
+  //     if (this.timer() - start < time) continue;
+  //     else {
+  //       await this.scheduler();
+  //       await this.pauseBarrier.wait();
+  //       this.checkStopped();
+  //       start = this.timer();
+  //     }
+  //   }
+  //   await this.pauseBarrier.wait();
+  //   this.checkStopped();
+  //   this.progressImpl.endSubTask(infoId);
+  //   return result;
+  // }
 
   pause() { this.paused.set(true); this.pauseBarrier.block() }
   unpause() { this.paused.set(false); this.pauseBarrier.unblock() }
@@ -324,7 +276,7 @@ export class SchedulerImpl implements Scheduler {
     const taskName = name ?? `task-${this.lastLaskId++}`;
     const taskValues = this.localValues.createChild(taskName);
     const descriptor = new TaskDescriptor<T>(taskName, taskValues, () => this.nextTick, () => this.tickStart, this.timer);
-    const wrappedTask = task(descriptor)
+    const wrappedTask = task(new ForkedTaskHandle(descriptor, 1))
       .then(result => {
         const ok = new Ok<T>(result);
         descriptor.task.set(done(ok));

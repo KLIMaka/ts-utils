@@ -345,7 +345,7 @@ test('waitMaybe', async () => {
   const task = s.exec(async handle => {
     for (let i = 0; i < 1000; i++) {
       stage = i;
-      await handle.waitMaybe(1);
+      await handle.waitMaybe('', 1);
     }
   });
 

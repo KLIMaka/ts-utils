@@ -10,12 +10,10 @@ export type ProgressInfo = {
 };
 export interface TaskHandle {
     readonly values: ValuesContainer;
-    plan(count: number): void;
-    incProgress(inc: number): void;
-    wait(info?: string, count?: number): Promise<void>;
-    waitMaybe(dt?: number): Promise<void>;
-    waitFor<T>(promise: Promise<T>, info?: string, count?: number): Promise<T>;
-    waitForBatchTask<T>(batch: Supplier<T>[], info?: string, time?: number): Promise<T[]>;
+    fork(count: number): TaskHandle;
+    wait(info?: string, dt?: number): Promise<void>;
+    waitMaybe(info?: string, dt?: number): Promise<void>;
+    waitFor<T>(promise: Promise<T>, info?: string): Promise<T>;
 }
 export declare const NOOP_TASK_HANDLE: TaskHandle;
 export type TaskValue<T> = {

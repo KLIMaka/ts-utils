@@ -23,7 +23,7 @@ function passTuple<I extends any[], O extends any[]>(work: Work<I, O>): Work<I, 
 function seq<I extends any[], O>(tasks: Work<any, any>[], defaultInput?: I): Work<I, O> {
   return async (handle, ...input) => {
     let result: any = input.length === 0 ? (defaultInput ?? []) : input;
-    handle.plan(tasks.length);
+    handle = handle.fork(tasks.length);
     for (const task of tasks)
       result = await task(handle, ...result);
     return result;
@@ -32,7 +32,7 @@ function seq<I extends any[], O>(tasks: Work<any, any>[], defaultInput?: I): Wor
 
 function parallel<I extends any[], O extends any[]>(tasks: Work<any, any>[]): Work<I, O> {
   return async (handle, ...input) => {
-    handle.plan(tasks.length);
+    handle = handle.fork(tasks.length);
     return Promise.all(tasks.map(t => t(handle, ...input))) as Promise<O>;
   }
 }

@@ -3,6 +3,7 @@ import { begin } from "../src/work";
 import { getOrCreate, range } from "../src/collections";
 import { Consumer, pair } from "../src/types";
 import { ValuesContainer } from "../src/callbacks";
+import { P } from "ts-pattern";
 
 
 async function run(cb: Consumer<number>): Promise<void> {
@@ -33,11 +34,13 @@ test('Task', async () => {
   const nextLoop = () => run(cb);
 
   let x = 0;
-
+  function* f1() {
+    yield 0.5;
+    x = 2;
+  }
   const controller1 = s.exec<void>(async h => {
     x = 1;
-    await h.wait();
-    x = 2;
+    await h.wait(f1());
   });
 
 
@@ -47,13 +50,17 @@ test('Task', async () => {
   expect(x).toBe(2)
 
   x = 0;
-  const controller2 = s.exec(async h => {
-    x = 1;
-    await h.wait();
+  function* f2() {
+    yield 0.3
     x = 2;
-    await h.wait();
+    yield 0.6
     x = 3;
     throw new Error();
+  }
+
+  const controller2 = s.exec(async h => {
+    x = 1;
+    await h.wait(f2())
   });
 
   controller2.stop();
@@ -65,10 +72,13 @@ test('Task', async () => {
   expect(async () => controller2.end().then(r => r.isErr())).toBeTruthy();
 
   x = 0;
+  function* f3() {
+    yield 1;
+    return 42;
+  }
   const controller3 = s.exec<number>(async h => {
     x = 1;
-    await h.wait();
-    return 42;
+    return h.wait(f3());
   });
 
   expect(x).toBe(1);
@@ -86,22 +96,24 @@ test('Scheduler1', async () => {
   let x = 0;
   let r = 0;
 
+  function* f() {
+    yield 0.1;
+    x = 1;
+    yield 0.1;
+  }
+
+  async function b() {
+    x = 2;
+    await new Promise<void>(ok => barrier = ok);
+    x = 3;
+    return 42;
+  }
+
   const task = s.exec(async h => {
-    async function a() {
-      await h.wait();
-      x = 1;
-      await h.wait();
-      r = await h.waitFor(b());
-      x = 4;
-    }
-    async function b() {
-      x = 2;
-      await h.waitFor(new Promise<void>(ok => barrier = ok));
-      x = 3;
-      return 42;
-    }
-    await h.waitFor(a());
+    await h.wait(f());
+    r = await h.waitFor(b());
     x = 5;
+    return r;
   });
 
   expect(x).toBe(0);
@@ -117,6 +129,7 @@ test('Scheduler1', async () => {
   await nextLoop();
   await nextLoop();
   expect(x).toBe(5);
+  expect(task.task.get().result().getOk()).toBe(42);
   expect(r).toBe(42);
   expect(task.task.get().isDone()).toBeTruthy();
 });
@@ -130,12 +143,14 @@ test('Scheduler', async () => {
   let y = 0;
 
   expect(x).toBe(0);
-  s.exec(async h => {
+  function* f1() {
     x = 1;
-    await h.wait();
+    yield 0.5;
     x = 2;
-    await h.wait();
-  });
+    yield 0.5;
+  }
+  s.exec(h => h.wait(f1()));
+
   const nnH = s.exec(async h => {
     await h.waitFor(on(5));
     x = 99;
@@ -148,12 +163,14 @@ test('Scheduler', async () => {
     await h.waitFor(on(8));
     y = 2;
   })
-  const counterH = s.exec(async h => {
+
+  function* f2() {
     for (; ;) {
       count(++counter);
-      await h.wait();
+      yield 0;
     }
-  });
+  }
+  const counterH = s.exec(h => h.wait(f2()));
 
   expect(x).toBe(1);
   expect(y).toBe(0);
@@ -342,12 +359,14 @@ test('waitMaybe', async () => {
   const nextLoop = () => run(cb);
 
   let stage = 0;
-  const task = s.exec(async handle => {
-    for (let i = 0; i < 1000; i++) {
+  const n = 1000;
+  function* f() {
+    for (let i = 0; i < n; i++) {
       stage = i;
-      await handle.waitMaybe('', 1);
+      yield 1 / n;
     }
-  });
+  }
+  s.exec(handle => handle.waitMaybe(f(), '', 1));
 
   expect(stage).toBe(0);
   await nextLoop();

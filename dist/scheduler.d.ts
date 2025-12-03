@@ -11,8 +11,8 @@ export type ProgressInfo = {
 export interface TaskHandle {
     readonly values: ValuesContainer;
     fork(count: number): TaskHandle;
-    wait(info?: string, dt?: number): Promise<void>;
-    waitMaybe(info?: string, dt?: number): Promise<void>;
+    wait<T>(task: Generator<number, T>, info?: string, dt?: number): Promise<T>;
+    waitMaybe<T>(task: Generator<number, T>, info?: string, dt?: number): Promise<T>;
     waitFor<T>(promise: Promise<T>, info?: string): Promise<T>;
 }
 export declare const NOOP_TASK_HANDLE: TaskHandle;

@@ -6,8 +6,8 @@ export class TaskInerruptedError extends Error {
 export const NOOP_TASK_HANDLE = {
     values: new ValuesContainer(''),
     fork: (count) => NOOP_TASK_HANDLE,
-    wait: (info, dt) => Promise.resolve(),
-    waitMaybe: (info, dt) => Promise.resolve(),
+    wait: (task, info, dt) => Promise.resolve(undefined),
+    waitMaybe: (task, info, dt) => Promise.resolve(undefined),
     waitFor: (promise, info) => promise,
 };
 export function progress(info) {
@@ -88,11 +88,11 @@ class ForkedTaskHandle {
     fork(count) {
         return new ForkedTaskHandle(this.handle, this.weight / count);
     }
-    wait(info) {
-        return this.handle.wait(this.weight, info);
+    wait(task, info) {
+        return this.handle.wait(task, this.weight, info);
     }
-    waitMaybe(info, dt) {
-        return this.handle.waitMaybe(this.weight, info, dt);
+    waitMaybe(task, info, dt) {
+        return this.handle.waitMaybe(task, this.weight, info, dt);
     }
     waitFor(promise, info) {
         return this.handle.waitFor(this.weight, promise, info);
@@ -124,58 +124,58 @@ class TaskDescriptor {
         this.paused = values.value('paused', false);
         this.task = value('task', progress(this.progressImpl));
     }
-    checkStopped() { if (this.stopped)
-        throw new TaskInerruptedError(); }
-    async wait(weight, info = '') {
-        this.checkStopped();
-        this.progressImpl.info.set(info);
-        await this.scheduler();
-        await this.pauseBarrier.wait();
-        this.checkStopped();
-        this.progressImpl.inc(weight);
+    async wait(task, weight, info = '') {
+        if (this.stopped)
+            return Promise.reject(new TaskInerruptedError());
+        const infoId = this.progressImpl.beginSubTask(info);
+        let totalProgress = 0;
+        let it = task.next();
+        while (!it.done) {
+            totalProgress += it.value;
+            this.progressImpl.inc(it.value * weight);
+            await this.scheduler();
+            await this.pauseBarrier.wait();
+            if (this.stopped)
+                return Promise.reject(new TaskInerruptedError());
+            it = task.next();
+        }
+        this.progressImpl.endSubTask(infoId);
+        this.progressImpl.inc((1 - totalProgress) * weight);
+        return it.value;
     }
-    async waitMaybe(weight, info = '', dtMs = 10) {
-        this.checkStopped();
-        if (this.timer() - this.tickStart() < dtMs)
-            return Promise.resolve();
-        this.progressImpl.info.set(info);
-        await this.scheduler();
-        await this.pauseBarrier.wait();
-        this.progressImpl.inc(weight);
-        this.checkStopped();
+    async waitMaybe(task, weight, info = '', dtMs = 10) {
+        if (this.stopped)
+            return Promise.reject(new TaskInerruptedError());
+        const infoId = this.progressImpl.beginSubTask(info);
+        let totalProgress = 0;
+        let it = task.next();
+        while (!it.done) {
+            totalProgress += it.value;
+            this.progressImpl.inc(it.value * weight);
+            if (this.timer() - this.tickStart() >= dtMs) {
+                await this.scheduler();
+                await this.pauseBarrier.wait();
+                if (this.stopped)
+                    return Promise.reject(new TaskInerruptedError());
+            }
+            it = task.next();
+        }
+        this.progressImpl.endSubTask(infoId);
+        this.progressImpl.inc((1 - totalProgress) * weight);
+        return it.value;
     }
     async waitFor(weight, promise, info = '') {
-        this.checkStopped();
+        if (this.stopped)
+            return Promise.reject(new TaskInerruptedError());
         const infoId = this.progressImpl.beginSubTask(info);
         const result = await promise;
         this.progressImpl.endSubTask(infoId);
         this.progressImpl.inc(weight);
         await this.pauseBarrier.wait();
-        this.checkStopped();
+        if (this.stopped)
+            return Promise.reject(new TaskInerruptedError());
         return result;
     }
-    // async waitForBatchTask<T>(batch: Supplier<T>[], info?: string, time = 10): Promise<T[]> {
-    //   this.checkStopped();
-    //   const result: T[] = [];
-    //   const infoId = this.progressImpl.beginSubTask(info ?? '');
-    //   this.plan(batch.length);
-    //   let start = this.timer();
-    //   for (const task of batch) {
-    //     result.push(task());
-    //     this.incProgress(1);
-    //     if (this.timer() - start < time) continue;
-    //     else {
-    //       await this.scheduler();
-    //       await this.pauseBarrier.wait();
-    //       this.checkStopped();
-    //       start = this.timer();
-    //     }
-    //   }
-    //   await this.pauseBarrier.wait();
-    //   this.checkStopped();
-    //   this.progressImpl.endSubTask(infoId);
-    //   return result;
-    // }
     pause() { this.paused.set(true); this.pauseBarrier.block(); }
     unpause() { this.paused.set(false); this.pauseBarrier.unblock(); }
     setTask(task) { this.taskImpl = task; }

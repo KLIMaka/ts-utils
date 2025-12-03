@@ -3,6 +3,18 @@ import { Err, Ok, second } from "./types";
 export class TaskInerruptedError extends Error {
     constructor() { super('Task Interrupted'); }
 }
+export function* gen(steps, valueCurrentTotal) {
+    const result = [];
+    let i = 0;
+    const total = steps.length;
+    const progress = 1 / total;
+    for (const step of steps) {
+        const value = step();
+        result.push(value);
+        yield { progress, info: valueCurrentTotal(value, i++, total) };
+    }
+    return result;
+}
 export const NOOP_TASK_HANDLE = {
     values: new ValuesContainer(''),
     fork: (count) => NOOP_TASK_HANDLE,

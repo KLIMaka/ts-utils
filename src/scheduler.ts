@@ -1,6 +1,6 @@
 import { printTime } from "./time";
 import { Source, transformedBuilder, tuple, Value, value, ValuesContainer } from "./callbacks";
-import { Consumer, Err, Function, Ok, Result, second, Supplier } from "./types";
+import { BiFunction, Consumer, Err, Function, MultiFunction, Ok, Result, second, Supplier } from "./types";
 
 export class TaskInerruptedError extends Error {
   constructor() { super('Task Interrupted') }
@@ -24,6 +24,19 @@ export interface TaskHandle {
   wait<T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number): Promise<T>;
   waitMaybe<T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number): Promise<T>;
   waitFor<T>(promise: Promise<T>, info?: string): Promise<T>;
+}
+
+export function* gen<T>(steps: Supplier<T>[], valueCurrentTotal: MultiFunction<[T, number, number], string>): Generator<TaskProgressPoint, T[]> {
+  const result = [];
+  let i = 0;
+  const total = steps.length;
+  const progress = 1 / total;
+  for (const step of steps) {
+    const value = step();
+    result.push(value);
+    yield { progress, info: valueCurrentTotal(value, i++, total) };
+  }
+  return result;
 }
 
 export const NOOP_TASK_HANDLE: TaskHandle = {

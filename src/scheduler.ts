@@ -13,19 +13,24 @@ export type ProgressInfo = {
   readonly info: Source<string>;
 }
 
+export type TaskProgressPoint = Readonly<{
+  progress: number,
+  info?: string,
+}>
+
 export interface TaskHandle {
   readonly values: ValuesContainer;
   fork(count: number): TaskHandle;
-  wait<T>(task: Generator<number, T>, info?: string, dt?: number): Promise<T>;
-  waitMaybe<T>(task: Generator<number, T>, info?: string, dt?: number): Promise<T>;
+  wait<T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number): Promise<T>;
+  waitMaybe<T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number): Promise<T>;
   waitFor<T>(promise: Promise<T>, info?: string): Promise<T>;
 }
 
 export const NOOP_TASK_HANDLE: TaskHandle = {
   values: new ValuesContainer(''),
   fork: (count: number): TaskHandle => NOOP_TASK_HANDLE,
-  wait: <T>(task: Generator<number, T>, info?: string, dt?: number) => Promise.resolve(undefined as T),
-  waitMaybe: <T>(task: Generator<number, T>, info?: string, dt?: number) => Promise.resolve(undefined as T),
+  wait: <T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number) => Promise.resolve(undefined as T),
+  waitMaybe: <T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number) => Promise.resolve(undefined as T),
   waitFor: <T>(promise: Promise<T>, info?: string) => promise,
 }
 
@@ -118,6 +123,10 @@ class PropgressInfoImpl implements ProgressInfo {
     return subtaskId;
   }
 
+  changeSubtaskInfo(id: number, label: string): void {
+    this.infos.mod(is => is.map(ent => ent[0] === id ? [id, label] : ent));
+  }
+
   endSubTask(id: number): void {
     this.infos.mod(is => is.filter(([itemId, _]) => id !== itemId));
   }
@@ -134,11 +143,11 @@ class ForkedTaskHandle implements TaskHandle {
     return new ForkedTaskHandle(this.handle, this.weight / count);
   }
 
-  wait<T>(task: Generator<number, T>, info?: string): Promise<T> {
+  wait<T>(task: Generator<TaskProgressPoint, T>, info?: string): Promise<T> {
     return this.handle.wait(task, this.weight, info);
   }
 
-  waitMaybe<T>(task: Generator<number, T>, info?: string, dt?: number): Promise<T> {
+  waitMaybe<T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number): Promise<T> {
     return this.handle.waitMaybe(task, this.weight, info, dt);
   }
 
@@ -173,14 +182,15 @@ class TaskDescriptor<T> implements TaskController<T> {
   }
 
 
-  async wait<T>(task: Generator<number, T>, weight: number, info: string = ''): Promise<T> {
+  async wait<T>(task: Generator<TaskProgressPoint, T>, weight: number, info: string = ''): Promise<T> {
     if (this.stopped) return Promise.reject(new TaskInerruptedError());
     const infoId = this.progressImpl.beginSubTask(info);
     let totalProgress = 0;
     let it = task.next();
     while (!it.done) {
-      totalProgress += it.value;
-      this.progressImpl.inc(it.value * weight);
+      totalProgress += it.value.progress;
+      this.progressImpl.inc(it.value.progress * weight);
+      this.progressImpl.changeSubtaskInfo(infoId, it.value.info ?? '');
       await this.scheduler();
       await this.pauseBarrier.wait();
       if (this.stopped) return Promise.reject(new TaskInerruptedError());
@@ -191,15 +201,16 @@ class TaskDescriptor<T> implements TaskController<T> {
     return it.value;
   }
 
-  async waitMaybe<T>(task: Generator<number, T>, weight: number, info: string = '', dtMs = 10): Promise<T> {
+  async waitMaybe<T>(task: Generator<TaskProgressPoint, T>, weight: number, info: string = '', dtMs = 10): Promise<T> {
     if (this.stopped) return Promise.reject(new TaskInerruptedError());
     const infoId = this.progressImpl.beginSubTask(info);
     let totalProgress = 0;
     let it = task.next();
     while (!it.done) {
-      totalProgress += it.value;
-      this.progressImpl.inc(it.value * weight);
+      totalProgress += it.value.progress;
+      this.progressImpl.inc(it.value.progress * weight);
       if (this.timer() - this.tickStart() >= dtMs) {
+        this.progressImpl.changeSubtaskInfo(infoId, it.value.info ?? '');
         await this.scheduler();
         await this.pauseBarrier.wait();
         if (this.stopped) return Promise.reject(new TaskInerruptedError());

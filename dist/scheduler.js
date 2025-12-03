@@ -72,6 +72,9 @@ class PropgressInfoImpl {
         this.infos.mod(is => [...is, [subtaskId, label]]);
         return subtaskId;
     }
+    changeSubtaskInfo(id, label) {
+        this.infos.mod(is => is.map(ent => ent[0] === id ? [id, label] : ent));
+    }
     endSubTask(id) {
         this.infos.mod(is => is.filter(([itemId, _]) => id !== itemId));
     }
@@ -131,8 +134,9 @@ class TaskDescriptor {
         let totalProgress = 0;
         let it = task.next();
         while (!it.done) {
-            totalProgress += it.value;
-            this.progressImpl.inc(it.value * weight);
+            totalProgress += it.value.progress;
+            this.progressImpl.inc(it.value.progress * weight);
+            this.progressImpl.changeSubtaskInfo(infoId, it.value.info ?? '');
             await this.scheduler();
             await this.pauseBarrier.wait();
             if (this.stopped)
@@ -150,9 +154,10 @@ class TaskDescriptor {
         let totalProgress = 0;
         let it = task.next();
         while (!it.done) {
-            totalProgress += it.value;
-            this.progressImpl.inc(it.value * weight);
+            totalProgress += it.value.progress;
+            this.progressImpl.inc(it.value.progress * weight);
             if (this.timer() - this.tickStart() >= dtMs) {
+                this.progressImpl.changeSubtaskInfo(infoId, it.value.info ?? '');
                 await this.scheduler();
                 await this.pauseBarrier.wait();
                 if (this.stopped)

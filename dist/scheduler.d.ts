@@ -8,11 +8,15 @@ export type ProgressInfo = {
     readonly progress: Source<number>;
     readonly info: Source<string>;
 };
+export type TaskProgressPoint = Readonly<{
+    progress: number;
+    info?: string;
+}>;
 export interface TaskHandle {
     readonly values: ValuesContainer;
     fork(count: number): TaskHandle;
-    wait<T>(task: Generator<number, T>, info?: string, dt?: number): Promise<T>;
-    waitMaybe<T>(task: Generator<number, T>, info?: string, dt?: number): Promise<T>;
+    wait<T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number): Promise<T>;
+    waitMaybe<T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number): Promise<T>;
     waitFor<T>(promise: Promise<T>, info?: string): Promise<T>;
 }
 export declare const NOOP_TASK_HANDLE: TaskHandle;

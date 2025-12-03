@@ -35,7 +35,7 @@ test('Task', async () => {
 
   let x = 0;
   function* f1() {
-    yield 0.5;
+    yield { progress: 0.5 };
     x = 2;
   }
   const controller1 = s.exec<void>(async h => {
@@ -51,9 +51,9 @@ test('Task', async () => {
 
   x = 0;
   function* f2() {
-    yield 0.3
+    yield { progress: 0.3 }
     x = 2;
-    yield 0.6
+    yield { progress: 0.3 }
     x = 3;
     throw new Error();
   }
@@ -73,7 +73,7 @@ test('Task', async () => {
 
   x = 0;
   function* f3() {
-    yield 1;
+    yield { progress: 1 };
     return 42;
   }
   const controller3 = s.exec<number>(async h => {
@@ -97,9 +97,9 @@ test('Scheduler1', async () => {
   let r = 0;
 
   function* f() {
-    yield 0.1;
+    yield { progress: 0.1 };
     x = 1;
-    yield 0.1;
+    yield { progress: 0.1 };
   }
 
   async function b() {
@@ -145,9 +145,9 @@ test('Scheduler', async () => {
   expect(x).toBe(0);
   function* f1() {
     x = 1;
-    yield 0.5;
+    yield { progress: 0.5 };
     x = 2;
-    yield 0.5;
+    yield { progress: 0.5 };
   }
   s.exec(h => h.wait(f1()));
 
@@ -167,7 +167,7 @@ test('Scheduler', async () => {
   function* f2() {
     for (; ;) {
       count(++counter);
-      yield 0;
+      yield { progress: 0 };
     }
   }
   const counterH = s.exec(h => h.wait(f2()));
@@ -363,7 +363,7 @@ test('waitMaybe', async () => {
   function* f() {
     for (let i = 0; i < n; i++) {
       stage = i;
-      yield 1 / n;
+      yield { progress: 1 / n };
     }
   }
   s.exec(handle => handle.waitMaybe(f(), '', 1));

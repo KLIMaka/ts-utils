@@ -209,11 +209,12 @@ declare class Tuple<Args extends any[]> extends BaseValue<Args> {
 export declare function tuple<Args extends any[]>(...sources: SourcefyArray<Args>): Tuple<Args>;
 export declare class ValuesContainer implements Disposable {
     readonly name: string;
+    private factory;
     readonly parent?: ValuesContainer | undefined;
     private tupleCache;
     readonly graph: DirectionalGraph<Disposable>;
     readonly children: Map<string, ValuesContainer>;
-    constructor(name: string, parent?: ValuesContainer | undefined);
+    constructor(name: string, factory?: BiFunction<string, ValuesContainer, ValuesContainer>, parent?: ValuesContainer | undefined);
     tuple<Tuple extends any[]>(srcs: SourcefyArray<Tuple>): Source<SingleTuple<Tuple>>;
     private find;
     size(): number;

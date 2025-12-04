@@ -565,6 +565,8 @@ function exactContentAndOrder(tuple1: any[], tuple2: any[]): boolean {
   return tuple1.every((x, i) => tuple2[i] === x);
 }
 
+const DEFAULT_FACTORY: BiFunction<string, ValuesContainer, ValuesContainer> = (name, parent) => new ValuesContainer(name, DEFAULT_FACTORY, parent);
+
 export class ValuesContainer implements Disposable {
   private tupleCache = new Map<Source<any>[], Source<any>>();
   readonly graph = new DirectionalGraph<Disposable>();
@@ -572,6 +574,7 @@ export class ValuesContainer implements Disposable {
 
   constructor(
     readonly name: string,
+    private factory: BiFunction<string, ValuesContainer, ValuesContainer> = DEFAULT_FACTORY,
     readonly parent?: ValuesContainer
   ) { }
 
@@ -609,7 +612,8 @@ export class ValuesContainer implements Disposable {
   createChild(name: string): ValuesContainer {
     const prevContainer = this.children.get(name);
     if (prevContainer !== undefined) prevContainer.dispose();
-    const newContainer = new ValuesContainer(name, this)
+    const newContainer = this.factory(name, this);
+    newContainer.addDisconnector(() => { if (this.children.get(name) === newContainer) this.children.delete(name) });
     this.children.set(name, newContainer);
     return newContainer;
   }

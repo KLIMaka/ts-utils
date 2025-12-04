@@ -451,14 +451,17 @@ function exactContentAndOrder(tuple1, tuple2) {
         return false;
     return tuple1.every((x, i) => tuple2[i] === x);
 }
+const DEFAULT_FACTORY = (name, parent) => new ValuesContainer(name, DEFAULT_FACTORY, parent);
 export class ValuesContainer {
     name;
+    factory;
     parent;
     tupleCache = new Map();
     graph = new DirectionalGraph();
     children = new Map();
-    constructor(name, parent) {
+    constructor(name, factory = DEFAULT_FACTORY, parent) {
         this.name = name;
+        this.factory = factory;
         this.parent = parent;
     }
     tuple(srcs) {
@@ -493,7 +496,9 @@ export class ValuesContainer {
         const prevContainer = this.children.get(name);
         if (prevContainer !== undefined)
             prevContainer.dispose();
-        const newContainer = new ValuesContainer(name, this);
+        const newContainer = this.factory(name, this);
+        newContainer.addDisconnector(() => { if (this.children.get(name) === newContainer)
+            this.children.delete(name); });
         this.children.set(name, newContainer);
         return newContainer;
     }

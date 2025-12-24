@@ -1,4 +1,4 @@
-import { BiFunction, MultiFunction } from "./types";
+import { BiFn, MultiFn } from "./types";
 export declare class KDTree {
     private points;
     private dims;
@@ -6,7 +6,7 @@ export declare class KDTree {
     private inRangeFn;
     private tree;
     private top;
-    constructor(points: number[], dims: number, distanceFn: BiFunction<number[], number[], number>, inRangeFn: MultiFunction<[number[], number[], number[]], boolean>);
+    constructor(points: number[], dims: number, distanceFn: BiFn<number[], number[], number>, inRangeFn: MultiFn<[number[], number[], number[]], boolean>);
     private insertNode;
     private point;
     private build;

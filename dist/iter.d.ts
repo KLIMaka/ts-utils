@@ -1,6 +1,6 @@
 import Optional from "optional-js";
 import { Deiterable } from "./collections";
-import { Function } from "./types";
+import { Fn } from "./types";
 export declare class Iter<T> implements Iterable<T> {
     iter: Iterable<T>;
     static of<T>(iter: Iterable<T>): Iter<T>;
@@ -31,10 +31,10 @@ export declare class Iter<T> implements Iterable<T> {
     collect(): T[];
     set(): Set<T>;
     length(): number;
-    toMap<K, V>(keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V>;
-    toObject<U>(keyMapper: Function<T, keyof U>, valueMapper: Function<T, any>): U;
-    group<K, V>(keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V[]>;
-    groupEntries<K, V>(keyMapper: Function<T, K>, valueMapper: Function<T, V>): Iter<[K, V[]]>;
+    toMap<K, V>(keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Map<K, V>;
+    toObject<U>(keyMapper: Fn<T, keyof U>, valueMapper: Fn<T, any>): U;
+    group<K, V>(keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Map<K, V[]>;
+    groupEntries<K, V>(keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Iter<[K, V[]]>;
     await_(): Promise<Iter<Awaited<T>>>;
 }
 export declare function iter<T>(iter: Iterable<T>): Iter<T>;

@@ -1,5 +1,5 @@
 import Optional from "optional-js";
-import { Consumer, Function, Supplier } from "./types";
+import { Consumer, Fn, Supplier } from "./types";
 import { Disposable } from "./callbacks";
 export declare class LazyValue<T> {
     private initializer;
@@ -34,16 +34,16 @@ export declare function firstNotNull<T>(t1: T, t2: T): Optional<T>;
 export declare function objectKeys<T>(obj: T): (keyof T)[];
 export declare function applyDefaults<T>(value: T, def: T): T;
 export declare function applyNotNullish<T>(value: T, f: Consumer<T>): void;
-export declare function applyNotNullishOr<T, U>(value: T, f: Function<T, U>, supplier: Supplier<U>): U;
-export declare function field<T, K extends keyof T>(field: K): Function<T, T[K]>;
+export declare function applyNotNullishOr<T, U>(value: T, f: Fn<T, U>, supplier: Supplier<U>): U;
+export declare function field<T, K extends keyof T>(field: K): Fn<T, T[K]>;
 type Optionalify<T> = {
     [P in keyof T]: Optional<T[P]>;
 };
 export declare function andOptional<T extends any[]>(...opts: Optionalify<T>): Optional<T>;
-export declare function asyncMapOptional<T, U>(src: Optional<T>, mapper: Function<T, Promise<U>>): Promise<Optional<U>>;
+export declare function asyncMapOptional<T, U>(src: Optional<T>, mapper: Fn<T, Promise<U>>): Promise<Optional<U>>;
 export declare function asyncOptional<T>(src: Optional<Promise<T>>): Promise<Optional<T>>;
 export declare function zipOptional<T, U>(l: Optional<T>, r: Optional<U>): Optional<[T, U]>;
-export declare function asyncFlatMapOptional<T, U>(src: Optional<T>, mapper: Function<T, Promise<Optional<U>>>): Promise<Optional<U>>;
+export declare function asyncFlatMapOptional<T, U>(src: Optional<T>, mapper: Fn<T, Promise<Optional<U>>>): Promise<Optional<U>>;
 export declare function strcmpci(str1: string, str2: string): boolean;
 export declare function checkNotNull<T>(value: T | null, message: string): T;
 export type Id = {

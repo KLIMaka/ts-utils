@@ -1,6 +1,6 @@
 import Optional from "optional-js";
 import { filter, map, reduce, forEach, all, enumerate, take, findFirst, chain, butLast, skip, any, iterIsEmpty, skipWhile, flatten, Deiterable, zip, join, length, toMap, reduceFirst, group, toObject, groupEntries, range, flatMap, zipTuple } from "./collections";
-import { Function } from "./types";
+import { Fn } from "./types";
 
 export class Iter<T> implements Iterable<T> {
   public static of<T>(iter: Iterable<T>) { return new Iter(iter) }
@@ -33,10 +33,10 @@ export class Iter<T> implements Iterable<T> {
   collect(): T[] { return [...this.iter] }
   set(): Set<T> { return new Set(this.iter) }
   length(): number { return length(this.iter) }
-  toMap<K, V>(keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V> { return toMap(this.iter, keyMapper, valueMapper) }
-  toObject<U>(keyMapper: Function<T, keyof U>, valueMapper: Function<T, any>): U { return toObject(this.iter, keyMapper, valueMapper) }
-  group<K, V>(keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V[]> { return group(this.iter, keyMapper, valueMapper) }
-  groupEntries<K, V>(keyMapper: Function<T, K>, valueMapper: Function<T, V>): Iter<[K, V[]]> { return new Iter(groupEntries(this.iter, keyMapper, valueMapper)) }
+  toMap<K, V>(keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Map<K, V> { return toMap(this.iter, keyMapper, valueMapper) }
+  toObject<U>(keyMapper: Fn<T, keyof U>, valueMapper: Fn<T, any>): U { return toObject(this.iter, keyMapper, valueMapper) }
+  group<K, V>(keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Map<K, V[]> { return group(this.iter, keyMapper, valueMapper) }
+  groupEntries<K, V>(keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Iter<[K, V[]]> { return new Iter(groupEntries(this.iter, keyMapper, valueMapper)) }
   async await_(): Promise<Iter<Awaited<T>>> { return new Iter(await Promise.all([...this.iter])) }
 }
 

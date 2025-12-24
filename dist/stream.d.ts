@@ -1,4 +1,4 @@
-import { Supplier, Function } from "./types";
+import { Supplier, Fn } from "./types";
 export declare class Stream {
     private view;
     private offset;
@@ -69,7 +69,7 @@ export declare const array: <T>(type: Accessor<T>, len: number) => Accessor<T[]>
 export declare const atomic_array: <T>(type: AtomicReader<any, T>, len: number) => Accessor<T>;
 export declare const struct: <T>(type?: Supplier<T>) => StructBuilderFromType<T>;
 export declare const builder: () => StructBuilder<unknown>;
-export declare const transformed: <Stored, Actual>(stored: Accessor<Stored>, to: Function<Actual, Stored>, from: Function<Stored, Actual>) => Accessor<Actual>;
+export declare const transformed: <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) => Accessor<Actual>;
 type Field<T, F extends keyof T = any> = [keyof T, Accessor<T[F]>];
 declare class StructBuilderFromType<T> implements Accessor<T> {
     private ctr?;

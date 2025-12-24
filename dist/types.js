@@ -36,12 +36,7 @@ export class Ok {
     optional() { return Optional.of(this.ok); }
 }
 export function toResult(opt) {
-    try {
-        return new Ok(opt.get());
-    }
-    catch (e) {
-        return new Err(e);
-    }
+    return result(() => opt.get());
 }
 export function result(supplier) {
     try {

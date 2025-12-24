@@ -1,5 +1,5 @@
 import Optional from "optional-js";
-import { BiFunction, Function, MultiFunction } from "./types";
+import { BiFn, Fn, MultiFn } from "./types";
 export interface Collection<T> extends Iterable<T> {
     get(i: number): T;
     length(): number;
@@ -78,7 +78,7 @@ export declare function zip<T1, T2>(i1: Iterable<T1>, i2: Iterable<T2>): Generat
 export declare function zipTuple<T extends any[]>(...its: Iterable<any>[]): Generator<T>;
 export declare function forEach<T>(i: Iterable<T>, f: (t: T) => void): void;
 export declare function reduce<T>(i: Iterable<T>, f: (lh: T, rh: T) => T, start: T): T;
-export declare function reduceFirst<T>(i: Iterable<T>, f: BiFunction<T, T, T>): Optional<T>;
+export declare function reduceFirst<T>(i: Iterable<T>, f: BiFn<T, T, T>): Optional<T>;
 export declare function sub<T>(c: Collection<T>, start: number, length: number): Generator<T>;
 export declare function all<T>(i: Iterable<T>, f: (t: T) => boolean): boolean;
 export declare function any<T>(i: Iterable<T>, f: (t: T) => boolean): boolean;
@@ -106,17 +106,17 @@ export declare function skipWhile<T>(i: Iterable<T>, f: (t: T) => boolean): Iter
 export declare function prefixNotEmpty<T>(prefix: Iterable<T>, i: Iterable<T>): Generator<T>;
 export declare function rect(w: number, h: number): Generator<[number, number]>;
 export declare function intersect<T>(lh: Set<T>, rh: Set<T>): Set<T>;
-export declare function interpolate<T>(ii: Iterable<T>, f: MultiFunction<[T, T, number], T>, points?: number[]): Generator<T>;
+export declare function interpolate<T>(ii: Iterable<T>, f: MultiFn<[T, T, number], T>, points?: number[]): Generator<T>;
 export type Deiterable<T> = T extends Iterable<infer T1> ? T1 : never;
 export declare function flatten<T>(i: Iterable<Iterable<T>>): Generator<T>;
 export declare function flatMap<T, U>(i: Iterable<T>, f: (t: T) => Iterable<U>): Generator<U>;
-export declare function toMap<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V>;
-export declare function toObject<T, U>(i: Iterable<T>, keyMapper: Function<T, keyof U>, valueMapper: Function<T, any>): U;
-export declare function group<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V[]>;
-export declare function groupEntries<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Generator<[K, V[]]>;
-export declare function getOrCreate<K, V>(map: Map<K, V>, key: K, value: Function<K, V>): V;
+export declare function toMap<T, K, V>(i: Iterable<T>, keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Map<K, V>;
+export declare function toObject<T, U>(i: Iterable<T>, keyMapper: Fn<T, keyof U>, valueMapper: Fn<T, any>): U;
+export declare function group<T, K, V>(i: Iterable<T>, keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Map<K, V[]>;
+export declare function groupEntries<T, K, V>(i: Iterable<T>, keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Generator<[K, V[]]>;
+export declare function getOrCreate<K, V>(map: Map<K, V>, key: K, value: Fn<K, V>): V;
 export declare function getOrDefault<K, V>(map: Map<K, V>, key: K, def: V): V;
-export declare function getOrDefaultF<K, V>(map: Map<K, V>, key: K, def: Function<K, V>): V;
+export declare function getOrDefaultF<K, V>(map: Map<K, V>, key: K, def: Fn<K, V>): V;
 export interface MapBuilder<K, V> {
     add(k: K, v: V): this;
     build(): Map<K, V>;

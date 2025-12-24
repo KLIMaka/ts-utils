@@ -1,6 +1,6 @@
 import { TaskHandle } from "./scheduler";
 import { iter } from "./iter";
-import { BiConsumer, First, Function, first as first1 } from "./types";
+import { BiConsumer, First, Fn, first as first1 } from "./types";
 
 export type Work<I extends any[] = [], O = void> = (handle: TaskHandle, ...input: I) => Promise<O>
 
@@ -37,11 +37,11 @@ function parallel<I extends any[], O extends any[]>(tasks: Work<any, any>[]): Wo
   }
 }
 
-function mapParallel<Item, I extends any[], O>(items: Iterable<Item>, mapper: Function<Item, Work<I, O>>): Work<I, O[]> {
+function mapParallel<Item, I extends any[], O>(items: Iterable<Item>, mapper: Fn<Item, Work<I, O>>): Work<I, O[]> {
   return parallel(iter(items).map(mapper).collect())
 }
 
-function mapSeq<Item, IO extends any[]>(items: Iterable<Item>, mapper: Function<Item, Work<IO, IO>>): Work<IO, IO> {
+function mapSeq<Item, IO extends any[]>(items: Iterable<Item>, mapper: Fn<Item, Work<IO, IO>>): Work<IO, IO> {
   return seq(iter(items).map(mapper).collect())
 }
 
@@ -117,18 +117,18 @@ export class WorkBuilder<SeqInput extends any[] = [], ParallelInput extends any[
     return this as any as WorkBuilder<[T], [], GlobalInput>
   }
 
-  fork<T extends any[]>(b: Function<ParallelWorkBuilder<SeqInput, []>, ParallelWorkBuilder<SeqInput, T>>): WorkBuilder<T, [], GlobalInput> {
+  fork<T extends any[]>(b: Fn<ParallelWorkBuilder<SeqInput, []>, ParallelWorkBuilder<SeqInput, T>>): WorkBuilder<T, [], GlobalInput> {
     const w = parallel(b(new ParallelWorkBuilder()).tasks);
     this.tasks.push(w);
     return this as any as WorkBuilder<T, [], GlobalInput>;
   }
 
-  forkPass<T extends any[]>(b: Function<ParallelWorkBuilder<SeqInput, []>, ParallelWorkBuilder<SeqInput, T>>): WorkBuilder<[...SeqInput, T], [], GlobalInput> {
+  forkPass<T extends any[]>(b: Fn<ParallelWorkBuilder<SeqInput, []>, ParallelWorkBuilder<SeqInput, T>>): WorkBuilder<[...SeqInput, T], [], GlobalInput> {
     this.tasks.push(pass(parallel(b(new ParallelWorkBuilder()).tasks)));
     return this as any as WorkBuilder<[...SeqInput, T], [], GlobalInput>;
   }
 
-  forkItems<I, O>(input: Iterable<I>, info: Function<I, string>, task: Function<I, Promise<O>>): WorkBuilder<[O[]], [], GlobalInput> {
+  forkItems<I, O>(input: Iterable<I>, info: Fn<I, string>, task: Fn<I, Promise<O>>): WorkBuilder<[O[]], [], GlobalInput> {
     this.tasks.push(tuple(mapParallel(input, i => handle => handle.waitFor(task(i), info(i)))));
     return this as any as WorkBuilder<[O[]], [], GlobalInput>;
   }

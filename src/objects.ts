@@ -1,6 +1,6 @@
 import Optional from "optional-js";
 import { cyclic } from "./mathutils";
-import { Consumer, Function, Supplier } from "./types";
+import { Consumer, Fn, Supplier } from "./types";
 import { Disposable } from "./callbacks";
 import { iter } from "./iter";
 
@@ -83,11 +83,11 @@ export function applyNotNullish<T>(value: T, f: Consumer<T>) {
   if (value != null) f(value);
 }
 
-export function applyNotNullishOr<T, U>(value: T, f: Function<T, U>, supplier: Supplier<U>) {
+export function applyNotNullishOr<T, U>(value: T, f: Fn<T, U>, supplier: Supplier<U>) {
   return value != null ? f(value) : supplier();
 }
 
-export function field<T, K extends keyof T>(field: K): Function<T, T[K]> {
+export function field<T, K extends keyof T>(field: K): Fn<T, T[K]> {
   return x => x[field];
 }
 
@@ -97,7 +97,7 @@ export function andOptional<T extends any[]>(...opts: Optionalify<T>): Optional<
   return Optional.of(opts.map(o => o.get()) as T)
 }
 
-export async function asyncMapOptional<T, U>(src: Optional<T>, mapper: Function<T, Promise<U>>): Promise<Optional<U>> {
+export async function asyncMapOptional<T, U>(src: Optional<T>, mapper: Fn<T, Promise<U>>): Promise<Optional<U>> {
   if (!src.isPresent()) return Optional.empty();
   return Optional.of(await mapper(src.get()));
 }
@@ -111,7 +111,7 @@ export function zipOptional<T, U>(l: Optional<T>, r: Optional<U>): Optional<[T, 
   return l.flatMap(l => r.map(r => [l, r]));
 }
 
-export async function asyncFlatMapOptional<T, U>(src: Optional<T>, mapper: Function<T, Promise<Optional<U>>>): Promise<Optional<U>> {
+export async function asyncFlatMapOptional<T, U>(src: Optional<T>, mapper: Fn<T, Promise<Optional<U>>>): Promise<Optional<U>> {
   if (!src.isPresent()) return Optional.empty();
   return await mapper(src.get());
 }

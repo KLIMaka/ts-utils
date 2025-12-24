@@ -1,4 +1,4 @@
-import { Function } from './types';
+import { Fn } from './types';
 import { clamp, cyclic, int } from './mathutils';
 
 export interface Raster<P> {
@@ -35,7 +35,7 @@ export function palRasterizer(pal: ArrayLike<number>, trans = 255, transColor = 
   }
 }
 
-export function pluTransform(plu: Uint8Array): Function<number, number> {
+export function pluTransform(plu: Uint8Array): Fn<number, number> {
   return c => c === 255 ? 255 : plu[c];
 }
 
@@ -76,7 +76,7 @@ export class F32RGBAArrayRaster implements Raster<number> {
 export class TransformRaster<S, D> implements Raster<D> {
   readonly width: number;
   readonly height: number;
-  constructor(private src: Raster<S>, private transform: Function<S, D>) {
+  constructor(private src: Raster<S>, private transform: Fn<S, D>) {
     this.width = src.width;
     this.height = src.height;
   }
@@ -200,7 +200,7 @@ export function f32array(arr: Float32Array, w: number, h: number, mapper: Mapper
   return new F32RGBAArrayRaster(w, h, arr, mapper);
 }
 
-export function transform<S, D>(src: Raster<S>, transform: Function<S, D>): Raster<D> {
+export function transform<S, D>(src: Raster<S>, transform: Fn<S, D>): Raster<D> {
   return new TransformRaster(src, transform);
 }
 

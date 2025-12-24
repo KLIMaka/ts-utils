@@ -1,4 +1,4 @@
-import { Function } from './types';
+import { Fn } from './types';
 export interface Raster<P> {
     readonly width: number;
     readonly height: number;
@@ -6,7 +6,7 @@ export interface Raster<P> {
 }
 export type Rasterizer<P> = (raster: Raster<P>, out: Uint8Array | Uint8ClampedArray | number[]) => void;
 export declare function palRasterizer(pal: ArrayLike<number>, trans?: number, transColor?: number[]): Rasterizer<number>;
-export declare function pluTransform(plu: Uint8Array): Function<number, number>;
+export declare function pluTransform(plu: Uint8Array): Fn<number, number>;
 export declare function rasterizeRGBA8(raster: Raster<number>, out: ArrayBuffer): void;
 export declare class ConstRaster<P> implements Raster<P> {
     readonly width: number;
@@ -36,7 +36,7 @@ export declare class TransformRaster<S, D> implements Raster<D> {
     private transform;
     readonly width: number;
     readonly height: number;
-    constructor(src: Raster<S>, transform: Function<S, D>);
+    constructor(src: Raster<S>, transform: Fn<S, D>);
     pixel(x: number, y: number): D;
 }
 export declare class AxisSwapRaster<P> implements Raster<P> {
@@ -90,7 +90,7 @@ export declare class SuperResizeRaster<P> implements Raster<P> {
 }
 export declare function array<P>(arr: ArrayLike<P>, w: number, h: number): Raster<P>;
 export declare function f32array(arr: Float32Array, w: number, h: number, mapper: Mapper): Raster<number>;
-export declare function transform<S, D>(src: Raster<S>, transform: Function<S, D>): Raster<D>;
+export declare function transform<S, D>(src: Raster<S>, transform: Fn<S, D>): Raster<D>;
 export declare function axisSwap<P>(src: Raster<P>): AxisSwapRaster<P>;
 export declare function rect<P>(src: Raster<P>, sx: number, sy: number, ex: number, ey: number, padd: P): Raster<P>;
 export declare function rectRepeat<P>(src: Raster<P>, sx: number, sy: number, ex: number, ey: number): Raster<P>;

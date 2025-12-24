@@ -1,5 +1,5 @@
 import { Source, ValuesContainer } from "./callbacks";
-import { Consumer, MultiFunction, Result, Supplier } from "./types";
+import { Consumer, MultiFn, Result, Supplier } from "./types";
 export declare class TaskInerruptedError extends Error {
     constructor();
 }
@@ -19,7 +19,7 @@ export interface TaskHandle {
     waitMaybe<T>(task: Generator<TaskProgressPoint, T>, info?: string, dt?: number): Promise<T>;
     waitFor<T>(promise: Promise<T>, info?: string): Promise<T>;
 }
-export declare function gen<T>(steps: Supplier<T>[], valueCurrentTotal: MultiFunction<[T, number, number], string>): Generator<TaskProgressPoint, T[]>;
+export declare function gen<T>(steps: Supplier<T>[], valueCurrentTotal: MultiFn<[T, number, number], string>): Generator<TaskProgressPoint, T[]>;
 export declare const NOOP_TASK_HANDLE: TaskHandle;
 export type TaskValue<T> = {
     isDone(): boolean;

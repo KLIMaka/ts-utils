@@ -2,13 +2,13 @@ import { match } from "ts-pattern";
 import { Value } from "./callbacks";
 import { takeFirst } from "./collections";
 import { cyclic } from "./mathutils";
-import { BiFunction, Function, Supplier } from "./types";
+import { BiFn, Fn, Supplier } from "./types";
 
 export type NavigateAction = 'nop' | 'next' | 'prev' | 'nextMicro' | 'prevMicro' | 'nextMacro' | 'prevMacro' | 'start' | 'end';
-export type Navigator = Function<NavigateAction, Promise<void>>;
+export type Navigator = Fn<NavigateAction, Promise<void>>;
 export const EMPTY_NAVIGATOR: Navigator = async _ => { };
 
-export function navigateList<T>(value: Value<T>, listSupplier: Supplier<T[]>, wrap: BiFunction<number, number, number> = cyclic, macroStep = 10): Navigator {
+export function navigateList<T>(value: Value<T>, listSupplier: Supplier<T[]>, wrap: BiFn<number, number, number> = cyclic, macroStep = 10): Navigator {
   const navigate = async (type: NavigateAction) => {
     if (type === 'nop') return;
     const list = listSupplier();

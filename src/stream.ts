@@ -1,5 +1,5 @@
 import { sum } from "./mathutils";
-import { Supplier, Function } from "./types";
+import { Supplier, Fn } from "./types";
 
 export class Stream {
   private view: DataView<ArrayBuffer>;
@@ -257,7 +257,7 @@ export const array = <T>(type: Accessor<T>, len: number) => accessor(s => readAr
 export const atomic_array = <T>(type: AtomicReader<any, T>, len: number) => accessor(s => readAtomicArray(s, type, len), (s, v) => writeAtomicArray(s, type, len, v), type.size * len);
 export const struct = <T>(type?: Supplier<T>) => new StructBuilderFromType(type);
 export const builder = () => new StructBuilder();
-export const transformed = <Stored, Actual>(stored: Accessor<Stored>, to: Function<Actual, Stored>, from: Function<Stored, Actual>) =>
+export const transformed = <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) =>
   accessor(s => from(stored.read(s)), (s, v) => stored.write(s, to(v)), stored.size);
 
 const readArray = <T>(s: Stream, type: Accessor<T>, len: number): Array<T> => {

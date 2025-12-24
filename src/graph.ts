@@ -1,7 +1,7 @@
 import { chain, getOrCreate, map, slidingPairs, reduce } from './collections';
 import { iter } from './iter';
 import { memoize } from './mathutils';
-import { Function } from './types';
+import { Fn } from './types';
 
 export type Links<T> = { to: Set<T>, from: Set<T> };
 export class DirectionalGraph<T> {
@@ -28,7 +28,7 @@ export class DirectionalGraph<T> {
     this.nodes.delete(n);
   }
 
-  order(node: T, f: Function<Links<T>, Set<T>> = l => l.to): number {
+  order(node: T, f: Fn<Links<T>, Set<T>> = l => l.to): number {
     const links = this.nodes.get(node);
     if (links === undefined) return 0;
     const flinks = f(links);
@@ -44,7 +44,7 @@ export class DirectionalGraph<T> {
     return [...result].sort((l, r) => order(r) - order(l));
   }
 
-  orderedAll(f: Function<Links<T>, Set<T>> = l => l.to) {
+  orderedAll(f: Fn<Links<T>, Set<T>> = l => l.to) {
     const order = memoize((n: T) => this.order(n, f));
     return [...this.nodes.keys()].sort((l, r) => order(r) - order(l));
   }

@@ -1,10 +1,10 @@
 import { Draft } from "immer";
 import Optional from "optional-js";
 import { DirectionalGraph } from "./graph";
-import { BiConsumer, BiFunction, BiPredicate, Consumer, Function, MultiFunction, SingleTuple, Supplier, Transform } from "./types";
+import { BiConsumer, BiFn, BiPred, Consumer, Fn, MultiFn, SingleTuple, Supplier, Transform } from "./types";
 export type ChangeCallback<T> = BiConsumer<T, number>;
 export type Disconnector = Consumer<void>;
-export declare function arrayEq<T>(arr1: T[], arr2: T[], eqf?: BiPredicate<T, T>): boolean;
+export declare function arrayEq<T>(arr1: T[], arr2: T[], eqf?: BiPred<T, T>): boolean;
 export declare function objectEq(obj1: any, obj2: any): boolean;
 export type Signal<Args extends any[] = []> = {
     call(...args: Args): void;
@@ -19,14 +19,14 @@ export interface Source<T> {
 }
 export interface Destination<T> {
     set(value: T): void;
-    setPromiseOrDispose(mod: Function<T, Promise<T>>): Promise<boolean>;
+    setPromiseOrDispose(mod: Fn<T, Promise<T>>): Promise<boolean>;
     modImmer(mod: Consumer<Draft<T>>): void;
     mod(mod: Transform<T>): void;
 }
 export type Disposable = {
     dispose(): Promise<void>;
 };
-export declare function disposer<T extends Disposable>(): Function<T, Promise<void>>;
+export declare function disposer<T extends Disposable>(): Fn<T, Promise<void>>;
 export declare function disposable(disconnector: Disconnector): Disposable;
 export declare function dispose(...disp: Disposable[]): void;
 declare abstract class BaseSource<T> implements Source<T> {
@@ -58,8 +58,8 @@ export interface ValueBuilder<T> {
     readonly name?: string;
     readonly value: T;
     readonly disposer?: Consumer<T>;
-    readonly eq?: BiPredicate<T, T>;
-    readonly setter?: BiFunction<T, T, T>;
+    readonly eq?: BiPred<T, T>;
+    readonly setter?: BiFn<T, T, T>;
 }
 export declare class BaseValue<T> extends BaseSource<T> implements Disposable {
     protected value: T;
@@ -67,9 +67,9 @@ export declare class BaseValue<T> extends BaseSource<T> implements Disposable {
     private eq;
     private settter;
     private modsCount;
-    constructor(builder: ValueBuilder<T>, value?: T, disposer?: Consumer<T>, eq?: BiPredicate<T, T>, settter?: BiFunction<T, T, T>, modsCount?: number);
+    constructor(builder: ValueBuilder<T>, value?: T, disposer?: Consumer<T>, eq?: BiPred<T, T>, settter?: BiFn<T, T, T>, modsCount?: number);
     set(newValue: T): void;
-    setPromiseOrDispose(mod: Function<T, Promise<T>>): Promise<boolean>;
+    setPromiseOrDispose(mod: Fn<T, Promise<T>>): Promise<boolean>;
     private setImpl;
     protected setOrDispose(newValue: T): void;
     protected isSameValue(value: T): boolean;
@@ -96,7 +96,7 @@ export declare function valueBuilder<T>(builder: ValueBuilder<T>): Value<T>;
 export declare function value<T>(name: string, value: T): Value<T>;
 export interface ProxyValueBuilder<T> extends ValueBuilder<T> {
     readonly source: Supplier<T>;
-    readonly signalConnector: Function<Consumer<void>, Disconnector>;
+    readonly signalConnector: Fn<Consumer<void>, Disconnector>;
 }
 declare class ProxyValue<T> extends BaseValue<T> {
     private source;
@@ -107,10 +107,10 @@ declare class ProxyValue<T> extends BaseValue<T> {
     protected lastDisconnect(): void;
 }
 export declare function proxyBuilder<T>(builder: ProxyValueBuilder<T>): ProxyValue<T>;
-export declare function proxy<T>(source: Supplier<T>, signalConnector: Function<Consumer<void>, Disconnector>): ProxyValue<T>;
+export declare function proxy<T>(source: Supplier<T>, signalConnector: Fn<Consumer<void>, Disconnector>): ProxyValue<T>;
 export interface ProxyValueAsyncBuilder<T> extends ValueBuilder<T> {
     readonly source: Supplier<Promise<T>>;
-    readonly signalConnector: Function<Consumer<void>, Disconnector>;
+    readonly signalConnector: Fn<Consumer<void>, Disconnector>;
 }
 declare class ProxyValueAsync<T> extends Value<T> {
     private source;
@@ -121,12 +121,12 @@ declare class ProxyValueAsync<T> extends Value<T> {
     protected lastDisconnect(): void;
 }
 export declare function proxyAsyncBuilder<T>(builder: ProxyValueAsyncBuilder<T>): ProxyValueAsync<T>;
-export declare function proxyAsync<T>(source: Supplier<Promise<T>>, signalConnector: Function<Consumer<void>, Disconnector>): Promise<ProxyValueAsync<T>>;
-export declare function proxyAsyncImmediate<T>(value: T, source: Supplier<Promise<T>>, signalConnector: Function<Consumer<void>, Disconnector>): ProxyValueAsync<T>;
+export declare function proxyAsync<T>(source: Supplier<Promise<T>>, signalConnector: Fn<Consumer<void>, Disconnector>): Promise<ProxyValueAsync<T>>;
+export declare function proxyAsyncImmediate<T>(value: T, source: Supplier<Promise<T>>, signalConnector: Fn<Consumer<void>, Disconnector>): ProxyValueAsync<T>;
 export interface TransformValueBuilder<S extends any[], D> extends ValueBuilder<D> {
     readonly source: Source<SingleTuple<S>>;
-    readonly transformer: MultiFunction<[SingleTuple<S>, D], D>;
-    readonly srcConnector?: BiFunction<SingleTuple<S>, BaseValue<D>, Disconnector>;
+    readonly transformer: MultiFn<[SingleTuple<S>, D], D>;
+    readonly srcConnector?: BiFn<SingleTuple<S>, BaseValue<D>, Disconnector>;
 }
 export declare const TRANSFORM_PLACEHOLDER: {};
 export declare class TransformValue<S extends any[], D> extends BaseValue<D> {
@@ -149,7 +149,7 @@ export declare class TransformValue<S extends any[], D> extends BaseValue<D> {
     depends(value: any): Optional<number>;
 }
 export declare function transformedBuilder<S extends any[], D>(builder: TransformValueBuilder<S, D>): TransformValue<S, D>;
-export declare function transformed<S, D>(source: Source<S>, transformer: Function<S, D>, srcConnector?: BiFunction<S, BaseValue<D>, Disconnector>): TransformValue<[S], D>;
+export declare function transformed<S, D>(source: Source<S>, transformer: Fn<S, D>, srcConnector?: BiFn<S, BaseValue<D>, Disconnector>): TransformValue<[S], D>;
 export type TransformedInitialValue<T> = {
     value: T;
     mods: number;
@@ -158,8 +158,8 @@ export declare function initial<T>(value: T): TransformedInitialValue<T>;
 export interface TransformValueAsyncBuilder<S extends any[], D> extends Omit<ValueBuilder<D>, 'value'> {
     readonly source: Source<SingleTuple<S>>;
     readonly initialValue?: TransformedInitialValue<D>;
-    readonly transformer: Function<SingleTuple<S>, Promise<D>>;
-    readonly srcConnector?: BiFunction<SingleTuple<S>, BaseValue<D>, Disconnector>;
+    readonly transformer: Fn<SingleTuple<S>, Promise<D>>;
+    readonly srcConnector?: BiFn<SingleTuple<S>, BaseValue<D>, Disconnector>;
 }
 export declare class TransformValueAsync<S extends any[], D> extends BaseValue<D> {
     private source;
@@ -184,7 +184,7 @@ export declare class TransformValueAsync<S extends any[], D> extends BaseValue<D
     protected disposeValue(value: D): void;
 }
 export declare function transformedAsyncBuilder<S extends any[], D>(builder: TransformValueAsyncBuilder<S, D>): TransformValueAsync<S, D>;
-export declare function transformedAsync<S, D>(name: string, source: Source<S>, transformer: Function<S, Promise<D>>, srcConnector?: BiFunction<S, BaseValue<D>, Disconnector>): Promise<TransformValueAsync<[S], D>>;
+export declare function transformedAsync<S, D>(name: string, source: Source<S>, transformer: Fn<S, Promise<D>>, srcConnector?: BiFn<S, BaseValue<D>, Disconnector>): Promise<TransformValueAsync<[S], D>>;
 type SourcefyArray<T> = {
     [P in keyof T]: Source<T[P]>;
 };
@@ -214,7 +214,7 @@ export declare class ValuesContainer implements Disposable {
     private tupleCache;
     readonly graph: DirectionalGraph<Disposable>;
     readonly children: Map<string, ValuesContainer>;
-    constructor(name: string, factory?: BiFunction<string, ValuesContainer, ValuesContainer>, parent?: ValuesContainer | undefined);
+    constructor(name: string, factory?: BiFn<string, ValuesContainer, ValuesContainer>, parent?: ValuesContainer | undefined);
     tuple<Tuple extends any[]>(srcs: SourcefyArray<Tuple>): Source<SingleTuple<Tuple>>;
     private find;
     size(): number;
@@ -228,21 +228,21 @@ export declare class ValuesContainer implements Disposable {
     valueBuilder<T>(builder: ValueBuilder<T>): Value<T>;
     proxyBuilder<T>(builder: ProxyValueBuilder<T>): ProxyValue<T>;
     proxyAsyncBuilder<T>(builder: ProxyValueAsyncBuilder<T>): ProxyValueAsync<T>;
-    transformedSelf<S, D>(name: string, source: Source<S>, init: D, transformer: BiFunction<S, D, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<[S], D>;
-    transformed<S, D>(name: string, source: Source<S>, transformer: Function<S, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<[S], D>;
+    transformedSelf<S, D>(name: string, source: Source<S>, init: D, transformer: BiFn<S, D, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<[S], D>;
+    transformed<S, D>(name: string, source: Source<S>, transformer: Fn<S, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<[S], D>;
     fields<S, Keys extends keyof S>(name: string, source: Source<S>, ...fields: Keys[]): TransformValue<[S], Pick<S, Keys>>;
     field<S, Key extends keyof S>(name: string, source: Source<S>, field: Key, valueBuilder?: Omit<ValueBuilder<S[Key]>, 'value'>): TransformValue<[S], S[Key]>;
-    transformedSelfTuple<S extends any[], D>(name: string, srcs: SourcefyArray<S>, init: D, transformer: BiFunction<S, D, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<S, D>;
-    transformedTuple<S extends any[], D>(name: string, srcs: SourcefyArray<S>, transformer: Function<S, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<S, D>;
+    transformedSelfTuple<S extends any[], D>(name: string, srcs: SourcefyArray<S>, init: D, transformer: BiFn<S, D, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<S, D>;
+    transformedTuple<S extends any[], D>(name: string, srcs: SourcefyArray<S>, transformer: Fn<S, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<S, D>;
     transformedAsyncBuilder<S, D>(builder: TransformValueAsyncBuilder<[S], D>): TransformValueAsync<[S], D>;
     transformedAsyncTupleBuilder<S extends any[], D>(builder: TransformValueAsyncBuilder<S, D>): TransformValueAsync<S, D>;
-    transformedAsyncTuple<S extends any[], D>(name: string, srcs: SourcefyArray<S>, transformer: Function<S, Promise<D>>, disposer?: Consumer<D>, srcConnector?: BiFunction<S, BaseValue<D>, Disconnector>): Promise<TransformValueAsync<S, D>>;
-    transformedAsync<S, D>(name: string, source: Source<S>, transformer: Function<S, Promise<D>>, disposer?: Consumer<D>, srcConnector?: BiFunction<S, BaseValue<D>, Disconnector>): Promise<TransformValueAsync<[S], D>>;
+    transformedAsyncTuple<S extends any[], D>(name: string, srcs: SourcefyArray<S>, transformer: Fn<S, Promise<D>>, disposer?: Consumer<D>, srcConnector?: BiFn<S, BaseValue<D>, Disconnector>): Promise<TransformValueAsync<S, D>>;
+    transformedAsync<S, D>(name: string, source: Source<S>, transformer: Fn<S, Promise<D>>, disposer?: Consumer<D>, srcConnector?: BiFn<S, BaseValue<D>, Disconnector>): Promise<TransformValueAsync<[S], D>>;
     handle<Srcs extends any[]>(srcs: SourcefyArray<Srcs>, handler: Consumer<SingleTuple<Srcs>>): Disconnector;
     handleStandalone<Srcs extends any[]>(srcs: SourcefyArray<Srcs>, handler: Consumer<SingleTuple<Srcs>>): void;
     signal<Args extends any[]>(): Signal<Args>;
-    initialize<T>(init: Function<ValuesContainer, T>): T;
-    initializeAsync<T>(init: Function<ValuesContainer, Promise<T>>): Promise<T>;
+    initialize<T>(init: Fn<ValuesContainer, T>): T;
+    initializeAsync<T>(init: Fn<ValuesContainer, Promise<T>>): Promise<T>;
     remove(value: Disposable): Promise<void>;
     dispose(): Promise<void>;
 }

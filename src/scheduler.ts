@@ -1,6 +1,6 @@
 import { printTime } from "./time";
 import { Source, transformedBuilder, tuple, Value, value, ValuesContainer } from "./callbacks";
-import { BiFunction, Consumer, Err, Function, MultiFunction, Ok, Result, second, Supplier } from "./types";
+import { BiFn, Consumer, Err, Fn, MultiFn, Ok, Result, second, Supplier } from "./types";
 
 export class TaskInerruptedError extends Error {
   constructor() { super('Task Interrupted') }
@@ -26,7 +26,7 @@ export interface TaskHandle {
   waitFor<T>(promise: Promise<T>, info?: string): Promise<T>;
 }
 
-export function* gen<T>(steps: Supplier<T>[], valueCurrentTotal: MultiFunction<[T, number, number], string>): Generator<TaskProgressPoint, T[]> {
+export function* gen<T>(steps: Supplier<T>[], valueCurrentTotal: MultiFn<[T, number, number], string>): Generator<TaskProgressPoint, T[]> {
   const result = [];
   let i = 0;
   const total = steps.length;

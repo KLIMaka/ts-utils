@@ -1,4 +1,4 @@
-import { BiFunction } from "./types";
+import { BiFn } from "./types";
 import { EMPTY_ITERATOR, ITERATOR_RESULT, TERMINAL_ITERATOR_RESULT, map } from "./collections";
 import { int } from "./mathutils";
 

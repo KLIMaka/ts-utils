@@ -1,6 +1,6 @@
 import Optional from "optional-js";
 import { cyclic } from "./mathutils";
-import { BiFunction, Function, MultiFunction } from "./types";
+import { BiFn, Fn, MultiFn } from "./types";
 
 export interface Collection<T> extends Iterable<T> {
   get(i: number): T;
@@ -258,7 +258,7 @@ export function reduce<T>(i: Iterable<T>, f: (lh: T, rh: T) => T, start: T): T {
   return start;
 }
 
-export function reduceFirst<T>(i: Iterable<T>, f: BiFunction<T, T, T>): Optional<T> {
+export function reduceFirst<T>(i: Iterable<T>, f: BiFn<T, T, T>): Optional<T> {
   const ii = i[Symbol.iterator]();
   const first = ii.next();
   if (first.done) return Optional.empty();
@@ -474,7 +474,7 @@ export function intersect<T>(lh: Set<T>, rh: Set<T>): Set<T> {
   return new Set([...lh].filter(t => rh.has(t)));
 }
 
-export function* interpolate<T>(ii: Iterable<T>, f: MultiFunction<[T, T, number], T>, points = [0.5]): Generator<T> {
+export function* interpolate<T>(ii: Iterable<T>, f: MultiFn<[T, T, number], T>, points = [0.5]): Generator<T> {
   const i = ii[Symbol.iterator]();
   let lh = i.next();
   if (lh.done) return;
@@ -508,31 +508,31 @@ export function* flatMap<T, U>(i: Iterable<T>, f: (t: T) => Iterable<U>): Genera
   }
 }
 
-export function toMap<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V> {
+export function toMap<T, K, V>(i: Iterable<T>, keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Map<K, V> {
   const map = new Map<K, V>();
   for (const item of i) map.set(keyMapper(item), valueMapper(item))
   return map;
 }
 
-export function toObject<T, U>(i: Iterable<T>, keyMapper: Function<T, keyof U>, valueMapper: Function<T, any>): U {
+export function toObject<T, U>(i: Iterable<T>, keyMapper: Fn<T, keyof U>, valueMapper: Fn<T, any>): U {
   const result = {} as U;
   for (const item of i) result[keyMapper(item)] = valueMapper(item);
   return result;
 }
 
-export function group<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Map<K, V[]> {
+export function group<T, K, V>(i: Iterable<T>, keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Map<K, V[]> {
   const map = new Map<K, V[]>();
   for (const item of i) getOrCreate(map, keyMapper(item), _ => []).push(valueMapper(item));
   return map;
 }
 
-export function* groupEntries<T, K, V>(i: Iterable<T>, keyMapper: Function<T, K>, valueMapper: Function<T, V>): Generator<[K, V[]]> {
+export function* groupEntries<T, K, V>(i: Iterable<T>, keyMapper: Fn<T, K>, valueMapper: Fn<T, V>): Generator<[K, V[]]> {
   const map = new Map<K, V[]>();
   for (const item of i) getOrCreate(map, keyMapper(item), _ => []).push(valueMapper(item));
   for (const e of map.entries()) yield e;
 }
 
-export function getOrCreate<K, V>(map: Map<K, V>, key: K, value: Function<K, V>) {
+export function getOrCreate<K, V>(map: Map<K, V>, key: K, value: Fn<K, V>) {
   let v = map.get(key);
   if (v === undefined) {
     v = value(key);
@@ -546,7 +546,7 @@ export function getOrDefault<K, V>(map: Map<K, V>, key: K, def: V) {
   return v === undefined ? def : v;
 }
 
-export function getOrDefaultF<K, V>(map: Map<K, V>, key: K, def: Function<K, V>) {
+export function getOrDefaultF<K, V>(map: Map<K, V>, key: K, def: Fn<K, V>) {
   const v = map.get(key);
   return v === undefined ? def(key) : v;
 }

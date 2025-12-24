@@ -1,5 +1,5 @@
 import { range } from "./collections";
-import { BiFunction, MultiFunction } from "./types";
+import { BiFn, MultiFn } from "./types";
 
 export class KDTree {
   private tree: number[] = [];
@@ -8,8 +8,8 @@ export class KDTree {
   constructor(
     private points: number[],
     private dims: number,
-    private distanceFn: BiFunction<number[], number[], number>,
-    private inRangeFn: MultiFunction<[number[], number[], number[]], boolean>,
+    private distanceFn: BiFn<number[], number[], number>,
+    private inRangeFn: MultiFn<[number[], number[], number[]], boolean>,
   ) {
     this.top = this.build([...range(0, points.length / dims)], 0);
   }

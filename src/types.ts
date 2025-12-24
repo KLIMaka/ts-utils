@@ -1,15 +1,15 @@
 import Optional from "optional-js";
 
-export type MultiFunction<Args extends any[], Res> = (...args: Args) => Res;
-export type Function<T, U> = MultiFunction<[T], U>;
-export type BiFunction<T1, T2, U> = MultiFunction<[T1, T2], U>;
-export type Predicate<T> = Function<T, boolean>;
-export type BiPredicate<T1, T2> = MultiFunction<[T1, T2], boolean>;
-export type Supplier<T> = Function<void, T>;
-export type MultiConsumer<Args extends any[]> = MultiFunction<Args, void>;
+export type MultiFn<Args extends any[], Res> = (...args: Args) => Res;
+export type Fn<T, U> = MultiFn<[T], U>;
+export type BiFn<T1, T2, U> = MultiFn<[T1, T2], U>;
+export type Pred<T> = Fn<T, boolean>;
+export type BiPred<T1, T2> = MultiFn<[T1, T2], boolean>;
+export type Supplier<T> = Fn<void, T>;
+export type MultiConsumer<Args extends any[]> = MultiFn<Args, void>;
 export type Consumer<T> = MultiConsumer<[T]>;
 export type BiConsumer<T1, T2> = MultiConsumer<[T1, T2]>;
-export type Transform<T> = Function<T, T>;
+export type Transform<T> = Fn<T, T>;
 export type SingleTuple<T> = T extends [infer Item] ? Item : T;
 export type First<T> = T extends [infer First, ...any] ? First : T extends Array<infer Item> ? Item : never;
 export type Second<T> = T extends [any, infer Second, ...any] ? Second : T extends Array<infer Item> ? Item : never;
@@ -34,10 +34,10 @@ export interface Result<T, E extends Error = Error> {
   getOk(): T;
   getErr(): E;
   unwrap(): T;
-  map<U>(consumer: Function<T, U>): Result<U, E>;
-  mapFlat<U>(consumer: Function<T, Result<U, E>>): Result<U, E>;
-  mapAsync<U>(consumer: Function<T, Promise<U>>): Promise<Result<U, E>>;
-  mapFlatAsync<U>(consumer: Function<T, Promise<Result<U, E>>>): Promise<Result<U, E>>;
+  map<U>(consumer: Fn<T, U>): Result<U, E>;
+  mapFlat<U>(consumer: Fn<T, Result<U, E>>): Result<U, E>;
+  mapAsync<U>(consumer: Fn<T, Promise<U>>): Promise<Result<U, E>>;
+  mapFlatAsync<U>(consumer: Fn<T, Promise<Result<U, E>>>): Promise<Result<U, E>>;
   optional(): Optional<T>;
 }
 
@@ -50,10 +50,10 @@ export class Err<E extends Error> implements Result<any, E> {
   isErr(): boolean { return true }
   getOk(): any { throw this.error }
   getErr(): E { return this.error }
-  map(_: Function<any, any>): Result<any, E> { return this }
-  mapFlat(_: Function<any, Result<any, E>>): Result<any, E> { return this }
-  async mapAsync(_: Function<any, Promise<any>>): Promise<Result<any, E>> { return this }
-  async mapFlatAsync(_: Function<any, Promise<Result<any, E>>>): Promise<Result<any, E>> { return this }
+  map(_: Fn<any, any>): Result<any, E> { return this }
+  mapFlat(_: Fn<any, Result<any, E>>): Result<any, E> { return this }
+  async mapAsync(_: Fn<any, Promise<any>>): Promise<Result<any, E>> { return this }
+  async mapFlatAsync(_: Fn<any, Promise<Result<any, E>>>): Promise<Result<any, E>> { return this }
   optional(): Optional<any> { return Optional.empty() }
 }
 
@@ -66,32 +66,25 @@ export class Ok<T> implements Result<T> {
   isErr(): boolean { return false }
   getOk(): any { return this.ok }
   getErr(): Error { throw new Error(`Result is Ok`) }
-  map<U>(consumer: Function<T, U>): Result<U> { return new Ok(consumer(this.ok)) }
-  mapFlat<U>(consumer: Function<T, Result<U>>): Result<U> { return consumer(this.ok) }
-  async mapAsync<U>(consumer: Function<T, Promise<U>>): Promise<Result<U>> { return new Ok(await consumer(this.ok)) }
-  async mapFlatAsync<U>(consumer: Function<T, Promise<Result<U>>>): Promise<Result<U>> { return await consumer(this.ok) }
+  map<U>(consumer: Fn<T, U>): Result<U> { return new Ok(consumer(this.ok)) }
+  mapFlat<U>(consumer: Fn<T, Result<U>>): Result<U> { return consumer(this.ok) }
+  async mapAsync<U>(consumer: Fn<T, Promise<U>>): Promise<Result<U>> { return new Ok(await consumer(this.ok)) }
+  async mapFlatAsync<U>(consumer: Fn<T, Promise<Result<U>>>): Promise<Result<U>> { return await consumer(this.ok) }
   optional(): Optional<T> { return Optional.of(this.ok) }
 }
 
 export function toResult<T>(opt: Optional<T>): Result<T> {
-  try { return new Ok<T>(opt.get()) }
-  catch (e) { return new Err(e as Error) }
+  return result(() => opt.get())
 }
 
 export function result<T>(supplier: Supplier<T>): Result<T> {
-  try {
-    return new Ok(supplier());
-  } catch (e) {
-    return new Err(e as Error);
-  }
+  try { return new Ok(supplier()) }
+  catch (e) { return new Err(e as Error) }
 }
 
 export async function resultAsync<T>(supplier: Supplier<Promise<T>>): Promise<Result<T>> {
-  try {
-    return new Ok(await supplier());
-  } catch (e) {
-    return new Err(e as Error);
-  }
+  try { return new Ok(await supplier()) }
+  catch (e) { return new Err(e as Error) }
 }
 
 export async function unwrapOptionalPromise<T>(opt: Optional<Promise<T>>): Promise<Optional<T>> {
@@ -99,16 +92,16 @@ export async function unwrapOptionalPromise<T>(opt: Optional<Promise<T>>): Promi
 }
 
 const truePredicate = (_: any) => true;
-export function true_<T>(): Predicate<T> {
+export function true_<T>(): Pred<T> {
   return truePredicate;
 }
 
 const falsePredicate = (_: any) => false;
-export function false_<T>(): Predicate<T> {
+export function false_<T>(): Pred<T> {
   return falsePredicate;
 }
 
-export function not<T>(pred: Predicate<T>): Predicate<T> {
+export function not<T>(pred: Pred<T>): Pred<T> {
   return (args: T) => !pred(args);
 }
 
@@ -130,11 +123,11 @@ export function first<T extends any[]>(tuple: T): First<T> {
   return tuple[0]
 }
 
-export function firstArg<T1, T2>(): BiFunction<T1, T2, T1> {
+export function firstArg<T1, T2>(): BiFn<T1, T2, T1> {
   return (first, _) => first;
 }
 
-export function secondArg<T1, T2>(): BiFunction<T1, T2, T2> {
+export function secondArg<T1, T2>(): BiFn<T1, T2, T2> {
   return (_, second) => second;
 }
 
@@ -152,8 +145,8 @@ export function pair<T, U>(t: T, u: U): [T, U] {
 
 
 const eqImpl = (l: any, r: any): boolean => l === r;
-export function refEq<T>(): BiPredicate<T, T> {
-  return eqImpl as BiPredicate<T, T>;
+export function refEq<T>(): BiPred<T, T> {
+  return eqImpl as BiPred<T, T>;
 }
 
 export interface Union<T, U> {

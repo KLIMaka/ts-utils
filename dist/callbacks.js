@@ -20,7 +20,7 @@ export function arrayEq(arr1, arr2, eqf = (l, r) => l === r) {
 export function objectEq(obj1, obj2) {
     if (!arrayEqImpl(Object.getOwnPropertyNames(obj1), Object.getOwnPropertyNames(obj2)))
         return false;
-    for (const k in Object.getOwnPropertyNames(obj1))
+    for (const k of Object.getOwnPropertyNames(obj1))
         if (obj1[k] !== obj2[k])
             return false;
     return true;

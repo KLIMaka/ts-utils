@@ -74,18 +74,15 @@ export declare class ResizeRaster<P> implements Raster<P> {
     constructor(src: Raster<P>, width: number, height: number);
     pixel(x: number, y: number): P;
 }
-export type PixelOperator<P> = (lh: P, rh: P, off: number) => P;
 export declare class SuperResizeRaster<P> implements Raster<P> {
     private src;
     readonly width: number;
     readonly height: number;
-    private op1;
-    private op2;
     private dx;
     private dy;
     private maxw;
     private maxh;
-    constructor(src: Raster<P>, width: number, height: number, op1: PixelOperator<P>, op2: PixelOperator<P>);
+    constructor(src: Raster<P>, width: number, height: number);
     pixel(x: number, y: number): P;
 }
 export declare function array<P>(arr: ArrayLike<P>, w: number, h: number): Raster<P>;
@@ -96,7 +93,7 @@ export declare function rect<P>(src: Raster<P>, sx: number, sy: number, ex: numb
 export declare function rectRepeat<P>(src: Raster<P>, sx: number, sy: number, ex: number, ey: number): Raster<P>;
 export declare function center<P>(src: Raster<P>, w: number, h: number, padd: P): Raster<P>;
 export declare function resize<P>(src: Raster<P>, w: number, h: number): Raster<P>;
-export declare function superResize<P>(src: Raster<P>, w: number, h: number, op1: PixelOperator<P>, op2: PixelOperator<P>): Raster<P>;
+export declare function superResize<P>(src: Raster<P>, w: number, h: number): Raster<P>;
 export declare function constColor<P>(w: number, h: number, color: P): ConstRaster<P>;
 export declare function mirrorX<P>(src: Raster<P>): Mirror<P>;
 export declare function mirrorY<P>(src: Raster<P>): Mirror<P>;

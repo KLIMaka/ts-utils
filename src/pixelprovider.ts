@@ -142,18 +142,6 @@ export class ResizeRaster<P> implements Raster<P> {
   pixel(x: number, y: number): P { return this.src.pixel(x * this.dx, y * this.dy) }
 }
 
-export type PixelOperator<P> = (lh: P, rh: P, off: number) => P;
-const DITH = [
-  0.0, 0.5, 0.125, 0.625,
-  0.75, 0.25, 0.875, 0.375,
-  0.1875, 0.6875, 0.0625, 0.5625,
-  0.9375, 0.4375, 0.8125, 0.3125
-];
-function dithOffset(x: number, y: number) {
-  const idx = int(x) % 4 * 4 + int(y) % 4;
-  return DITH[idx];
-}
-
 export class SuperResizeRaster<P> implements Raster<P> {
   private dx: number;
   private dy: number;
@@ -164,8 +152,6 @@ export class SuperResizeRaster<P> implements Raster<P> {
     private src: Raster<P>,
     readonly width: number,
     readonly height: number,
-    private op1: PixelOperator<P>,
-    private op2: PixelOperator<P>,
   ) {
     this.dx = src.width / this.width;
     this.dy = src.height / this.height;
@@ -178,16 +164,14 @@ export class SuperResizeRaster<P> implements Raster<P> {
     const ny = y * this.dy;
     const inx = int(nx);
     const iny = int(ny);
-    const doff = dithOffset(x, y);
     const fracx = nx - inx;
     const fracy = ny - iny;
     const dx = fracx <= 0.5 ? -1 : +1;
     const dy = fracy <= 0.5 ? -1 : +1;
     const addSample1 = this.src.pixel(clamp(inx + dx, 0, this.maxw), clamp(iny, 0, this.maxh));
     const addSample2 = this.src.pixel(clamp(inx, 0, this.maxw), clamp(iny + dy, 0, this.maxh));
-    const newSample = this.op1(addSample1, addSample2, doff);
     const origSample = this.src.pixel(inx, iny);
-    return newSample == null ? origSample : this.op2(origSample, newSample, doff);
+    return addSample1 == addSample2 ? addSample1 : origSample;
   }
 }
 
@@ -229,9 +213,9 @@ export function resize<P>(src: Raster<P>, w: number, h: number) {
   return new ResizeRaster(src, w, h);
 }
 
-export function superResize<P>(src: Raster<P>, w: number, h: number, op1: PixelOperator<P>, op2: PixelOperator<P>) {
+export function superResize<P>(src: Raster<P>, w: number, h: number) {
   if (src.height === h && src.width === w) return src;
-  return new SuperResizeRaster(src, w, h, op1, op2);
+  return new SuperResizeRaster(src, w, h);
 }
 
 export function constColor<P>(w: number, h: number, color: P) {

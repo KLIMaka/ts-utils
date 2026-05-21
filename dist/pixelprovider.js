@@ -161,32 +161,18 @@ export class ResizeRaster {
     }
     pixel(x, y) { return this.src.pixel(x * this.dx, y * this.dy); }
 }
-const DITH = [
-    0.0, 0.5, 0.125, 0.625,
-    0.75, 0.25, 0.875, 0.375,
-    0.1875, 0.6875, 0.0625, 0.5625,
-    0.9375, 0.4375, 0.8125, 0.3125
-];
-function dithOffset(x, y) {
-    const idx = int(x) % 4 * 4 + int(y) % 4;
-    return DITH[idx];
-}
 export class SuperResizeRaster {
     src;
     width;
     height;
-    op1;
-    op2;
     dx;
     dy;
     maxw;
     maxh;
-    constructor(src, width, height, op1, op2) {
+    constructor(src, width, height) {
         this.src = src;
         this.width = width;
         this.height = height;
-        this.op1 = op1;
-        this.op2 = op2;
         this.dx = src.width / this.width;
         this.dy = src.height / this.height;
         this.maxw = src.width - 1;
@@ -197,16 +183,14 @@ export class SuperResizeRaster {
         const ny = y * this.dy;
         const inx = int(nx);
         const iny = int(ny);
-        const doff = dithOffset(x, y);
         const fracx = nx - inx;
         const fracy = ny - iny;
         const dx = fracx <= 0.5 ? -1 : +1;
         const dy = fracy <= 0.5 ? -1 : +1;
         const addSample1 = this.src.pixel(clamp(inx + dx, 0, this.maxw), clamp(iny, 0, this.maxh));
         const addSample2 = this.src.pixel(clamp(inx, 0, this.maxw), clamp(iny + dy, 0, this.maxh));
-        const newSample = this.op1(addSample1, addSample2, doff);
         const origSample = this.src.pixel(inx, iny);
-        return newSample == null ? origSample : this.op2(origSample, newSample, doff);
+        return addSample1 == addSample2 ? addSample1 : origSample;
     }
 }
 export function array(arr, w, h) {
@@ -241,10 +225,10 @@ export function resize(src, w, h) {
         return src;
     return new ResizeRaster(src, w, h);
 }
-export function superResize(src, w, h, op1, op2) {
+export function superResize(src, w, h) {
     if (src.height === h && src.width === w)
         return src;
-    return new SuperResizeRaster(src, w, h, op1, op2);
+    return new SuperResizeRaster(src, w, h);
 }
 export function constColor(w, h, color) {
     return new ConstRaster(w, h, color);

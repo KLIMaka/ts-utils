@@ -1,5 +1,5 @@
 import { enableMapSet } from "immer";
-import { transformed, value, ValuesContainer } from "../src/callbacks";
+import { objectEq, transformed, value, ValuesContainer } from "../src/callbacks";
 import Optional from "optional-js";
 
 test('value', () => {
@@ -251,3 +251,11 @@ test('depends', () => {
   expect(v11.depends(a)).toStrictEqual(Optional.of(2));
   expect(v22.depends(b)).toStrictEqual(Optional.of(3));
 });
+
+test('objectEq', () => {
+  const a = { a: 1, b: 2 };
+
+  expect(objectEq(a, a)).toBeTruthy();
+  expect(objectEq(a, { a: 1, b: 2 })).toBeTruthy();
+  expect(objectEq(a, { a: 1, b: 3 })).toBe(false);
+})

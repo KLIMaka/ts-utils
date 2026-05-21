@@ -22,7 +22,7 @@ export function arrayEq<T>(arr1: T[], arr2: T[], eqf: BiPred<T, T> = (l, r) => l
 
 export function objectEq(obj1: any, obj2: any): boolean {
   if (!arrayEqImpl(Object.getOwnPropertyNames(obj1), Object.getOwnPropertyNames(obj2))) return false;
-  for (const k in Object.getOwnPropertyNames(obj1))
+  for (const k of Object.getOwnPropertyNames(obj1))
     if (obj1[k] !== obj2[k]) return false;
   return true;
 }

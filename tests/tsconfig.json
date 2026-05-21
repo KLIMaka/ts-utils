@@ -4,6 +4,7 @@
     "noEmit": true,
     "rootDir": "../",
     "sourceMap": true,
+    "types": ["jest"],
   },
   "include": [
     "./**/*"

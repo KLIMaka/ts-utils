@@ -121,8 +121,9 @@ export class RectRaster<P> implements Raster<P> {
   pixel(x: number, y: number): P {
     const nx = this.sx + x;
     const ny = this.sy + y;
-    if (nx < 0 || ny < 0 || nx >= this.src.width || ny >= this.src.height) return this.padd(cyclic(nx, this.src.width), cyclic(ny, this.src.height), this.src);
-    return this.src.pixel(nx, ny);
+    return (nx < 0 || ny < 0 || nx >= this.src.width || ny >= this.src.height)
+      ? this.padd(cyclic(nx, this.src.width), cyclic(ny, this.src.height), this.src)
+      : this.src.pixel(nx, ny);
   }
 }
 

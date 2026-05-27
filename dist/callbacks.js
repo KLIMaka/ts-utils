@@ -482,7 +482,8 @@ export class ValuesContainer {
     find(value) {
         return this.graph.nodes.has(value)
             ? Optional.of(value)
-            : Optional.empty();
+            : iter(this.graph.nodes.keys())
+                .first(d => value.depends(d).isPresent());
     }
     size() { return this.graph.nodes.size; }
     addDisconnector(disconnector) {
@@ -625,8 +626,8 @@ export class ValuesContainer {
         const { promise, reject, resolve } = Promise.withResolvers();
         setTimeout(async () => {
             const result = await resultAsync(async () => {
-                await iter(this.children.values()).forEach(c => c.dispose()).await_();
-                await iter(this.graph.orderedAll()).forEach(d => d.dispose()).await_();
+                await iter(this.children.values()).map(c => c.dispose()).await_();
+                await iter(this.graph.orderedAll()).map(d => d.dispose()).await_();
                 this.graph.nodes.clear();
                 this.tupleCache.clear();
             });

@@ -1,6 +1,7 @@
 import { enableMapSet } from "immer";
 import { objectEq, transformed, value, ValuesContainer } from "../src/callbacks";
 import Optional from "optional-js";
+import { nil } from "../src/types";
 
 test('value', () => {
   const a = value('a', 1);
@@ -259,3 +260,14 @@ test('objectEq', () => {
   expect(objectEq(a, { a: 1, b: 2 })).toBeTruthy();
   expect(objectEq(a, { a: 1, b: 3 })).toBe(false);
 })
+
+test('children dependencies', async () => {
+  const r = new ValuesContainer('root');
+  const c = r.createChild('child');
+  const cv = c.value('child-value', 42);
+  const rv = r.transformed('root-value', cv, cv => cv + 1);
+  c.handleStandalone([rv], nil());
+
+  expect(rv.get()).toBe(43);
+  await r.dispose();
+});

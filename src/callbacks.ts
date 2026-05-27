@@ -32,7 +32,7 @@ export type Signal<Args extends any[] = []> = {
   subscribe(handler: Consumer<Args>): Disconnector,
 }
 
-export interface Source<T> {
+export interface Source<T> extends Disposable {
   readonly name: string;
 
   get(): T,
@@ -86,6 +86,7 @@ abstract class BaseSource<T> implements Source<T> {
   abstract get(): T;
   abstract mods(): number;
   abstract depends(value: any): Optional<number>;
+  abstract dispose(): Promise<void>;
 }
 
 class ConstSource<T> implements Source<T>, Disposable {
@@ -592,10 +593,11 @@ export class ValuesContainer implements Disposable {
     return result;
   }
 
-  private find(value: any): Optional<Disposable> {
+  private find(value: Source<any>): Optional<Disposable> {
     return this.graph.nodes.has(value)
-      ? Optional.of(value as Disposable)
-      : Optional.empty();
+      ? Optional.of(value)
+      : iter(this.graph.nodes.keys())
+        .first(d => value.depends(d).isPresent());
   }
 
   size() { return this.graph.nodes.size }
@@ -778,8 +780,8 @@ export class ValuesContainer implements Disposable {
     const { promise, reject, resolve } = Promise.withResolvers<void>();
     setTimeout(async () => {
       const result = await resultAsync(async () => {
-        await iter(this.children.values()).forEach(c => c.dispose()).await_();
-        await iter(this.graph.orderedAll()).forEach(d => d.dispose()).await_();
+        await iter(this.children.values()).map(c => c.dispose()).await_();
+        await iter(this.graph.orderedAll()).map(d => d.dispose()).await_();
         this.graph.nodes.clear();
         this.tupleCache.clear();
       });

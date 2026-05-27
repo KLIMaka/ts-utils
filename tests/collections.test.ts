@@ -1,6 +1,5 @@
-import { Deck, IndexedDeck, all, cyclicPairs, cyclicRange, enumerate, findFirst, first, flatten, isEmpty, last, map, slidingPairs, range, rect, reduce, reversed, sub, take, wrap, slidingWindow, groups, Ring, flatMap, zip, zipTuple } from "../src/collections";
-import { FastList, SortedList } from "../src/list";
-import { rand0 } from "../src/random";
+import { Deck, IndexedDeck, Ring, all, cyclicPairs, cyclicRange, enumerate, findFirst, first, flatMap, flatten, groups, isEmpty, last, map, range, rect, reduce, reversed, slidingPairs, slidingWindow, sub, take, wrap, zip, zipTuple } from "../src/collections";
+import { FastList } from "../src/list";
 
 
 test('Deck', () => {

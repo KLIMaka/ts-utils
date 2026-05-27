@@ -10,7 +10,7 @@ export type Signal<Args extends any[] = []> = {
     call(...args: Args): void;
     subscribe(handler: Consumer<Args>): Disconnector;
 };
-export interface Source<T> {
+export interface Source<T> extends Disposable {
     readonly name: string;
     get(): T;
     mods(): number;
@@ -41,6 +41,7 @@ declare abstract class BaseSource<T> implements Source<T> {
     abstract get(): T;
     abstract mods(): number;
     abstract depends(value: any): Optional<number>;
+    abstract dispose(): Promise<void>;
 }
 declare class ConstSource<T> implements Source<T>, Disposable {
     readonly name: string;

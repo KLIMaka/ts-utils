@@ -249,7 +249,7 @@ test('depends', () => {
   const d = v22.transformed('d', c, c => c ** 2);
 
   expect(c.depends(a)).toStrictEqual(Optional.of(1));
-  expect(v11.depends(a)).toStrictEqual(Optional.of(2));
+  expect(v11.depends(a)).toStrictEqual(Optional.of(1));
   expect(v22.depends(b)).toStrictEqual(Optional.of(3));
 });
 
@@ -269,5 +269,17 @@ test('children dependencies', async () => {
   c.handleStandalone([rv], nil());
 
   expect(rv.get()).toBe(43);
+  await r.dispose();
+});
+
+test('children order', async () => {
+  const r = new ValuesContainer('root');
+  const c1 = r.createChild('c1');
+  const c2 = r.createChild('c2');
+
+  const c1v = c1.value('c1v', 42);
+  const c2v = c2.transformed('c2v', c1v, c1v => c1v + 1);
+  c2.handleStandalone([c2v], nil());
+
   await r.dispose();
 });

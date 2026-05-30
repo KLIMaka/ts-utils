@@ -1,4 +1,4 @@
-import { Fn } from './types';
+import { Fn, Pred } from './types';
 export type Links<T> = {
     to: Set<T>;
     from: Set<T>;
@@ -15,6 +15,7 @@ export declare class DirectionalGraph<T> {
     order(node: T, f?: Fn<Links<T>, Set<T>>): number;
     orderedTo(node: T): T[];
     orderedAll(f?: Fn<Links<T>, Set<T>>): T[];
+    orderedOnly(pred: Pred<T>, f?: Fn<Links<T>, Set<T>>): T[];
     findCycle(): T[];
     subgraphs(): T[][];
 }

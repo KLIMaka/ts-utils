@@ -2,8 +2,9 @@ import { Draft, produce } from "immer";
 import Optional from "optional-js";
 import { DirectionalGraph } from "./graph";
 import { iter } from "./iter";
-import { objectKeys } from "./objects";
+import { field, objectKeys } from "./objects";
 import { BiConsumer, BiFn, BiPred, Consumer, Fn, MultiFn, SingleTuple, Supplier, Transform, identity, nil, refEq, result, resultAsync, second, secondArg } from "./types";
+import { forEach, getOrCreate, length } from "./collections";
 
 export type ChangeCallback<T> = BiConsumer<T, number>;
 export type Disconnector = Consumer<void>;
@@ -480,7 +481,7 @@ export interface TupleBuilder<Args extends any[]> extends Omit<ValueBuilder<Args
 const TUPLE_PLACEHOLDER: any[] = []
 
 class Tuple<Args extends any[]> extends BaseValue<Args> {
-  private sources: SourcefyArray<Args>;
+  readonly sources: SourcefyArray<Args>;
   private lastSrcMods: number[];
   private disconnectors: Disconnector[] = [];
   private order: Source<any>[];
@@ -567,10 +568,11 @@ function exactContentAndOrder(tuple1: any[], tuple2: any[]): boolean {
 }
 
 const DEFAULT_FACTORY: BiFn<string, ValuesContainer, ValuesContainer> = (name, parent) => new ValuesContainer(name, DEFAULT_FACTORY, parent);
+type GraphNodeType = { content: Disposable, container: ValuesContainer };
+const NODES_MAP = new Map<Disposable, GraphNodeType>();
+const VALUES_GRAPH = new DirectionalGraph<GraphNodeType>();
 
 export class ValuesContainer implements Disposable {
-  private tupleCache = new Map<Source<any>[], Source<any>>();
-  readonly graph = new DirectionalGraph<Disposable>();
   readonly children = new Map<string, ValuesContainer>();
 
   constructor(
@@ -579,35 +581,38 @@ export class ValuesContainer implements Disposable {
     readonly parent?: ValuesContainer
   ) { }
 
-  tuple<Tuple extends any[]>(srcs: SourcefyArray<Tuple>): Source<SingleTuple<Tuple>> {
+  tuple<T extends any[]>(srcs: SourcefyArray<T>): Source<SingleTuple<T>> {
+    if (srcs.length === 1) return srcs[0];
     if (!uniqueValues(srcs)) throw new Error(`Duplicate sources`);
-    const cached = iter(this.tupleCache.entries())
-      .filter(([k, _]) => exactContentAndOrder(k, srcs))
-      .map(second)
+    const cached = iter(VALUES_GRAPH.nodes.keys())
+      .filter(({ content }) => content instanceof Tuple && exactContentAndOrder(content.sources as SourcefyArray<T>, srcs))
+      .map(({ content }) => content as Tuple<T>)
       .first();
-    if (cached.isPresent()) return cached.get();
-    if (iter(this.tupleCache.keys()).any(t => exactContent(t, srcs)))
+    if (cached.isPresent()) return cached.get() as any as Source<SingleTuple<T>>;
+    if (iter(VALUES_GRAPH.nodes.keys()).any(({ content }) => content instanceof Tuple && exactContent(content.sources as SourcefyArray<T>, srcs)))
       throw new Error(`Tuple with different order already exist`);
-    const result = srcs.length === 1 ? srcs[0] : tuple(...srcs);
-    this.tupleCache.set(srcs, result);
-    return result;
+    const result = tuple<T>(...srcs);
+    const node = this.node(result);
+    srcs.forEach(s => VALUES_GRAPH.add(node, this.node(s)));
+    return result as any as Source<SingleTuple<T>>;
   }
 
-  private find(value: Source<any>): Optional<Disposable> {
-    return this.graph.nodes.has(value)
-      ? Optional.of(value)
-      : iter(this.graph.nodes.keys())
-        .first(d => value.depends(d).isPresent());
+  private find(value: Source<any>): Optional<GraphNodeType> {
+    return Optional.ofNullable(NODES_MAP.get(value));
   }
 
-  size() { return this.graph.nodes.size }
+  size(): number { return length(VALUES_GRAPH.nodes.keys().filter(n => n.content === this)) }
 
   addDisconnector(disconnector: Disconnector): void {
     this.addDisposable({ dispose: async () => disconnector() });
   }
 
+  node<T extends Disposable>(value: T): GraphNodeType {
+    return getOrCreate(NODES_MAP, value, _ => ({ content: value, container: this }));
+  }
+
   addDisposable<T extends Disposable>(value: T): T {
-    this.graph.addNode(value);
+    VALUES_GRAPH.addNode(this.node(value));
     return value;
   }
 
@@ -622,15 +627,15 @@ export class ValuesContainer implements Disposable {
 
   addSubscribed<T>(value: Source<T>, cb: ChangeCallback<T>): void {
     const dispose = disposable(value.subscribe(cb));
-    this.find(value).ifPresentOrElse(d => this.graph.add(dispose, d), () => this.addDisposable(dispose));
+    this.find(value).ifPresentOrElse(d => VALUES_GRAPH.add(this.node(dispose), d), () => this.addDisposable(dispose));
   }
 
   depends(value: any): Optional<number> {
-    return this.graph.nodes.has(value)
+    return iter(VALUES_GRAPH.nodes.keys()).any(c => c.container === this && c.content === value)
       ? Optional.of(0)
-      : this.graph.nodes.keys()
-        .filter(n => (n as any)?.depends !== undefined)
-        .map(n => (n as any as Source<any>).depends(value))
+      : iter(VALUES_GRAPH.nodes.keys())
+        .filter(({ container, content }) => container === this && (content as any)?.depends !== undefined)
+        .map(({ content }) => (content as any as Source<any>).depends(value))
         .reduce((l, r) => l.or(() => r), Optional.empty())
         .or(() => this.children.values()
           .map(c => c.depends(value))
@@ -662,7 +667,7 @@ export class ValuesContainer implements Disposable {
   transformedSelf<S, D>(name: string, source: Source<S>, init: D, transformer: BiFn<S, D, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<[S], D> {
     const srcDisposable = this.find(source);
     const value = this.addDisposable(transformedBuilder<[S], D>({ name, source, transformer, ...valueBuilder, value: init }));
-    srcDisposable.ifPresent(d => this.graph.add(value, d));
+    srcDisposable.ifPresent(d => VALUES_GRAPH.add(this.node(value), d));
     return value;
   }
 
@@ -682,9 +687,8 @@ export class ValuesContainer implements Disposable {
 
   transformedSelfTuple<S extends any[], D>(name: string, srcs: SourcefyArray<S>, init: D, transformer: BiFn<S, D, D>, valueBuilder?: Omit<ValueBuilder<D>, 'value'>): TransformValue<S, D> {
     const source = this.tuple(srcs);
-    const srcDisposables = srcs.map(s => this.find(s));
     const value = this.addDisposable(transformedBuilder({ name, source, transformer, ...valueBuilder, value: init }));
-    srcDisposables.forEach(d => d.ifPresent(d => this.graph.add(value, d)));
+    VALUES_GRAPH.add(this.node(value), this.node(source))
     return value;
   }
 
@@ -696,14 +700,14 @@ export class ValuesContainer implements Disposable {
   transformedAsyncBuilder<S, D>(builder: TransformValueAsyncBuilder<[S], D>): TransformValueAsync<[S], D> {
     const srcDisposable = this.find(builder.source);
     const value = this.addDisposable(transformedAsyncBuilder(builder));
-    srcDisposable.ifPresent(d => this.graph.add(value, d));
+    srcDisposable.ifPresent(d => VALUES_GRAPH.add(this.node(value), d));
     return value;
   }
 
   transformedAsyncTupleBuilder<S extends any[], D>(builder: TransformValueAsyncBuilder<S, D>): TransformValueAsync<S, D> {
     const srcDisposable = this.find(builder.source);
     const value = this.addDisposable(transformedAsyncBuilder(builder));
-    srcDisposable.ifPresent(d => this.graph.add(value, d));
+    srcDisposable.ifPresent(d => VALUES_GRAPH.add(this.node(value), d));
     return value;
   }
 
@@ -715,10 +719,9 @@ export class ValuesContainer implements Disposable {
     srcConnector: BiFn<S, BaseValue<D>, Disconnector> = _ => nil()
   ): Promise<TransformValueAsync<S, D>> {
     const source = this.tuple(srcs);
-    const srcDisposables = srcs.map(s => this.find(s));
     const initialValue = { value: await transformer(source.get()), mods: source.mods() };
     const result = this.addDisposable(transformedAsyncBuilder({ name, source, transformer, initialValue, disposer, srcConnector }));
-    srcDisposables.forEach(d => d.ifPresent(d => this.graph.add(result, d)));
+    VALUES_GRAPH.add(this.node(result), this.node(source));
     return result;
   }
 
@@ -732,7 +735,7 @@ export class ValuesContainer implements Disposable {
     const srcDisposable = this.find(source);
     const initialValue = { value: await transformer(source.get()), mods: source.mods() };
     const result = this.addDisposable(transformedAsyncBuilder<[S], D>({ name, source, transformer, initialValue, disposer, srcConnector }));
-    srcDisposable.ifPresent(d => this.graph.add(result, d));
+    srcDisposable.ifPresent(d => VALUES_GRAPH.add(this.node(result), d));
     return result;
   }
 
@@ -744,7 +747,7 @@ export class ValuesContainer implements Disposable {
 
   handleStandalone<Srcs extends any[]>(srcs: SourcefyArray<Srcs>, handler: Consumer<SingleTuple<Srcs>>): void {
     const dispose = disposable(this.handle(srcs, handler));
-    srcs.map(s => this.find(s)).forEach(d => d.ifPresentOrElse(d => this.graph.add(dispose, d), () => this.addDisposable(dispose)));
+    srcs.map(s => this.find(s)).forEach(d => d.ifPresentOrElse(d => VALUES_GRAPH.add(this.node(dispose), d), () => this.addDisposable(dispose)));
   }
 
   signal<Args extends any[]>(): Signal<Args> {
@@ -768,7 +771,7 @@ export class ValuesContainer implements Disposable {
     const { promise, reject, resolve } = Promise.withResolvers<void>();
     const result = await resultAsync(async () => {
       await value.dispose();
-      this.graph.remove(value);
+      VALUES_GRAPH.remove(this.node(value));
     });
     result
       .onOk(resolve)
@@ -776,14 +779,21 @@ export class ValuesContainer implements Disposable {
     return promise;
   }
 
+  private getChildren(): Set<ValuesContainer> {
+    return iter(this.children.values())
+      .flatMap(c => [c, ...c.getChildren()])
+      .chain([this])
+      .set();
+  }
+
   async dispose(): Promise<void> {
     const { promise, reject, resolve } = Promise.withResolvers<void>();
     setTimeout(async () => {
       const result = await resultAsync(async () => {
-        await iter(this.children.values()).map(c => c.dispose()).await_();
-        await iter(this.graph.orderedAll()).map(d => d.dispose()).await_();
-        this.graph.nodes.clear();
-        this.tupleCache.clear();
+        const childrenContainers = new Set([...this.getChildren()]);
+        const nodes = new Set(VALUES_GRAPH.nodes.keys().filter(n => childrenContainers.has(n.container)));
+        await iter(VALUES_GRAPH.orderedOnly(n => nodes.has(n))).map(n => n.content.dispose()).await_();
+        nodes.forEach(n => VALUES_GRAPH.remove(n));
       });
       result
         .onOk(resolve)

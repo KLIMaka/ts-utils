@@ -1,6 +1,5 @@
 import { Draft } from "immer";
 import Optional from "optional-js";
-import { DirectionalGraph } from "./graph";
 import { BiConsumer, BiFn, BiPred, Consumer, Fn, MultiFn, SingleTuple, Supplier, Transform } from "./types";
 export type ChangeCallback<T> = BiConsumer<T, number>;
 export type Disconnector = Consumer<void>;
@@ -193,7 +192,7 @@ export interface TupleBuilder<Args extends any[]> extends Omit<ValueBuilder<Args
     sources: SourcefyArray<Args>;
 }
 declare class Tuple<Args extends any[]> extends BaseValue<Args> {
-    private sources;
+    readonly sources: SourcefyArray<Args>;
     private lastSrcMods;
     private disconnectors;
     private order;
@@ -208,18 +207,21 @@ declare class Tuple<Args extends any[]> extends BaseValue<Args> {
     lastDisconnect(): void;
 }
 export declare function tuple<Args extends any[]>(...sources: SourcefyArray<Args>): Tuple<Args>;
+type GraphNodeType = {
+    content: Disposable;
+    container: ValuesContainer;
+};
 export declare class ValuesContainer implements Disposable {
     readonly name: string;
     private factory;
     readonly parent?: ValuesContainer | undefined;
-    private tupleCache;
-    readonly graph: DirectionalGraph<Disposable>;
     readonly children: Map<string, ValuesContainer>;
     constructor(name: string, factory?: BiFn<string, ValuesContainer, ValuesContainer>, parent?: ValuesContainer | undefined);
-    tuple<Tuple extends any[]>(srcs: SourcefyArray<Tuple>): Source<SingleTuple<Tuple>>;
+    tuple<T extends any[]>(srcs: SourcefyArray<T>): Source<SingleTuple<T>>;
     private find;
     size(): number;
     addDisconnector(disconnector: Disconnector): void;
+    node<T extends Disposable>(value: T): GraphNodeType;
     addDisposable<T extends Disposable>(value: T): T;
     createChild(name: string): ValuesContainer;
     addSubscribed<T>(value: Source<T>, cb: ChangeCallback<T>): void;
@@ -245,6 +247,7 @@ export declare class ValuesContainer implements Disposable {
     initialize<T>(init: Fn<ValuesContainer, T>): T;
     initializeAsync<T>(init: Fn<ValuesContainer, Promise<T>>): Promise<T>;
     remove(value: Disposable): Promise<void>;
+    private getChildren;
     dispose(): Promise<void>;
 }
 export {};

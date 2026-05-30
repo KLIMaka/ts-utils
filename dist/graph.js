@@ -43,6 +43,10 @@ export class DirectionalGraph {
         const order = memoize((n) => this.order(n, f));
         return [...this.nodes.keys()].sort((l, r) => order(r) - order(l));
     }
+    orderedOnly(pred, f = l => l.to) {
+        const order = memoize((n) => this.order(n, f));
+        return [...this.nodes.keys().filter(pred)].sort((l, r) => order(r) - order(l));
+    }
     findCycle() {
         const colors = new Map();
         const paint = (node, links) => {

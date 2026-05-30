@@ -3,7 +3,6 @@ import { begin } from "../src/work";
 import { getOrCreate, range } from "../src/collections";
 import { Consumer, pair } from "../src/types";
 import { ValuesContainer } from "../src/callbacks";
-import { P } from "ts-pattern";
 
 
 async function run(cb: Consumer<number>): Promise<void> {

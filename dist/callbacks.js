@@ -2,7 +2,7 @@ import { produce } from "immer";
 import Optional from "optional-js";
 import { DirectionalGraph } from "./graph";
 import { iter } from "./iter";
-import { objectKeys } from "./objects";
+import { field, objectKeys } from "./objects";
 import { identity, nil, refEq, result, resultAsync, secondArg } from "./types";
 import { getOrCreate, length } from "./collections";
 function arrayEqImpl(arr1, arr2, eqf = (l, r) => l === r) {
@@ -436,7 +436,7 @@ class Tuple extends BaseValue {
     lastDisconnect() { this.disconnectors.forEach(d => d()); }
 }
 export function tuple(...sources) {
-    return new Tuple({ sources });
+    return new Tuple({ sources, name: `[${sources.map(s => s.name).join(',')}]` });
 }
 function uniqueValues(tuple) {
     const set = new Set(tuple);
@@ -596,8 +596,10 @@ export class ValuesContainer {
         return value.subscribe(handler);
     }
     handleStandalone(srcs, handler) {
-        const dispose = disposable(this.handle(srcs, handler));
-        srcs.map(s => this.find(s)).forEach(d => d.ifPresentOrElse(d => VALUES_GRAPH.add(this.node(dispose), d), () => this.addDisposable(dispose)));
+        const value = this.tuple(srcs);
+        handler(value.get());
+        const dispose = disposable(value.subscribe(handler));
+        VALUES_GRAPH.add(this.node(dispose), this.node(value));
     }
     signal() {
         const handlers = new Set();
@@ -630,13 +632,20 @@ export class ValuesContainer {
             .chain([this])
             .set();
     }
+    getValues() {
+        return iter(VALUES_GRAPH.nodes.keys())
+            .filter(({ container }) => container === this)
+            .map(field('content'))
+            .collect();
+    }
     async dispose() {
         const { promise, reject, resolve } = Promise.withResolvers();
         setTimeout(async () => {
             const result = await resultAsync(async () => {
-                const childrenContainers = new Set([...this.getChildren()]);
+                const childrenContainers = this.getChildren();
                 const nodes = new Set(VALUES_GRAPH.nodes.keys().filter(n => childrenContainers.has(n.container)));
-                await iter(VALUES_GRAPH.orderedOnly(n => nodes.has(n))).map(n => n.content.dispose()).await_();
+                const ordered = VALUES_GRAPH.orderedOnly(n => nodes.has(n));
+                await iter(ordered).map(n => n.content.dispose()).await_();
                 nodes.forEach(n => VALUES_GRAPH.remove(n));
             });
             result

@@ -278,8 +278,9 @@ test('children order', async () => {
   const c2 = r.createChild('c2');
 
   const c1v = c1.value('c1v', 42);
+  const c1v1 = c1.value('c1v1', 43);
   const c2v = c2.transformed('c2v', c1v, c1v => c1v + 1);
-  c2.handleStandalone([c2v], nil());
+  c2.handleStandalone([c2v, c1v1], nil());
 
   await r.dispose();
 });

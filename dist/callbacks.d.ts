@@ -248,6 +248,7 @@ export declare class ValuesContainer implements Disposable {
     initializeAsync<T>(init: Fn<ValuesContainer, Promise<T>>): Promise<T>;
     remove(value: Disposable): Promise<void>;
     private getChildren;
+    getValues(): Disposable[];
     dispose(): Promise<void>;
 }
 export {};

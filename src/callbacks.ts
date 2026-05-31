@@ -548,7 +548,7 @@ class Tuple<Args extends any[]> extends BaseValue<Args> {
 }
 
 export function tuple<Args extends any[]>(...sources: SourcefyArray<Args>): Tuple<Args> {
-  return new Tuple<Args>({ sources });
+  return new Tuple<Args>({ sources, name: `[${sources.map(s => s.name).join(',')}]` });
 }
 
 
@@ -746,8 +746,10 @@ export class ValuesContainer implements Disposable {
   }
 
   handleStandalone<Srcs extends any[]>(srcs: SourcefyArray<Srcs>, handler: Consumer<SingleTuple<Srcs>>): void {
-    const dispose = disposable(this.handle(srcs, handler));
-    srcs.map(s => this.find(s)).forEach(d => d.ifPresentOrElse(d => VALUES_GRAPH.add(this.node(dispose), d), () => this.addDisposable(dispose)));
+    const value = this.tuple(srcs);
+    handler(value.get());
+    const dispose = disposable(value.subscribe(handler));
+    VALUES_GRAPH.add(this.node(dispose), this.node(value));
   }
 
   signal<Args extends any[]>(): Signal<Args> {
@@ -786,13 +788,21 @@ export class ValuesContainer implements Disposable {
       .set();
   }
 
+  getValues(): Disposable[] {
+    return iter(VALUES_GRAPH.nodes.keys())
+      .filter(({ container }) => container === this)
+      .map(field('content'))
+      .collect();
+  }
+
   async dispose(): Promise<void> {
     const { promise, reject, resolve } = Promise.withResolvers<void>();
     setTimeout(async () => {
       const result = await resultAsync(async () => {
-        const childrenContainers = new Set([...this.getChildren()]);
+        const childrenContainers = this.getChildren();
         const nodes = new Set(VALUES_GRAPH.nodes.keys().filter(n => childrenContainers.has(n.container)));
-        await iter(VALUES_GRAPH.orderedOnly(n => nodes.has(n))).map(n => n.content.dispose()).await_();
+        const ordered = VALUES_GRAPH.orderedOnly(n => nodes.has(n));
+        await iter(ordered).map(n => n.content.dispose()).await_();
         nodes.forEach(n => VALUES_GRAPH.remove(n));
       });
       result

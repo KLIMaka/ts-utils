@@ -4,6 +4,7 @@ export class Err {
     constructor(error) {
         this.error = error;
     }
+    on(onOk, onErr) { return onErr(this.error); }
     onErr(consumer) { consumer(this.error); return this; }
     onOk(_) { return this; }
     unwrap() { throw this.error; }
@@ -22,6 +23,7 @@ export class Ok {
     constructor(ok) {
         this.ok = ok;
     }
+    on(onOk, onErr) { return onOk(this.ok); }
     onErr(_) { return this; }
     onOk(consumer) { consumer(this.ok); return this; }
     unwrap() { return this.ok; }

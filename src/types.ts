@@ -27,6 +27,7 @@ export type TypedArray = Int8Array | Uint8Array | Int16Array | Uint16Array | Int
 
 
 export interface Result<T, E extends Error = Error> {
+  on<U>(onOk: Fn<T, U>, onErr: Fn<E, U>): U,
   onErr(consumer: Consumer<E>): this;
   onOk(consumer: Consumer<T>): this;
   isOk(): boolean;
@@ -43,6 +44,7 @@ export interface Result<T, E extends Error = Error> {
 
 export class Err<E extends Error> implements Result<any, E> {
   constructor(private error: E) { }
+  on<U>(onOk: Fn<any, U>, onErr: Fn<E, U>): U { return onErr(this.error) }
   onErr(consumer: Consumer<E>): this { consumer(this.error); return this }
   onOk(_: Consumer<any>): this { return this }
   unwrap(): any { throw this.error }
@@ -59,6 +61,7 @@ export class Err<E extends Error> implements Result<any, E> {
 
 export class Ok<T> implements Result<T> {
   constructor(private ok: T) { }
+  on<U>(onOk: Fn<T, U>, onErr: Fn<Error, U>): U { return onOk(this.ok) }
   onErr(_: Consumer<Error>): this { return this }
   onOk(consumer: Consumer<T>): this { consumer(this.ok); return this }
   unwrap(): T { return this.ok }

@@ -24,6 +24,7 @@ export type Padd<T extends readonly any[], N extends number> = [...Iter<N>, ...T
 export type PaddRight<T extends readonly any[], N extends number> = [...T, ...Iter<N>];
 export type TypedArray = Int8Array | Uint8Array | Int16Array | Uint16Array | Int32Array | Uint32Array | Uint8ClampedArray | Float32Array | Float64Array;
 export interface Result<T, E extends Error = Error> {
+    on<U>(onOk: Fn<T, U>, onErr: Fn<E, U>): U;
     onErr(consumer: Consumer<E>): this;
     onOk(consumer: Consumer<T>): this;
     isOk(): boolean;
@@ -40,6 +41,7 @@ export interface Result<T, E extends Error = Error> {
 export declare class Err<E extends Error> implements Result<any, E> {
     private error;
     constructor(error: E);
+    on<U>(onOk: Fn<any, U>, onErr: Fn<E, U>): U;
     onErr(consumer: Consumer<E>): this;
     onOk(_: Consumer<any>): this;
     unwrap(): any;
@@ -56,6 +58,7 @@ export declare class Err<E extends Error> implements Result<any, E> {
 export declare class Ok<T> implements Result<T> {
     private ok;
     constructor(ok: T);
+    on<U>(onOk: Fn<T, U>, onErr: Fn<Error, U>): U;
     onErr(_: Consumer<Error>): this;
     onOk(consumer: Consumer<T>): this;
     unwrap(): T;

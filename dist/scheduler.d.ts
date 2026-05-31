@@ -1,5 +1,5 @@
 import { Source, ValuesContainer } from "./callbacks";
-import { Consumer, MultiFn, Result, Supplier } from "./types";
+import { Consumer, Fn, MultiFn, Result, Supplier } from "./types";
 export declare class TaskInerruptedError extends Error {
     constructor();
 }
@@ -25,6 +25,7 @@ export type TaskValue<T> = {
     isDone(): boolean;
     progress(): ProgressInfo;
     result(): Result<T>;
+    on<U>(onDone: Fn<Result<T>, U>, onProgress: Fn<ProgressInfo, U>): U;
 };
 export declare function progress<T>(info: ProgressInfo): TaskValue<T>;
 export declare function done<T>(result: Result<T>): TaskValue<T>;

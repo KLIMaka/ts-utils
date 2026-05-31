@@ -51,14 +51,15 @@ export type TaskValue<T> = {
   isDone(): boolean;
   progress(): ProgressInfo;
   result(): Result<T>;
-}
+  on<U>(onDone: Fn<Result<T>, U>, onProgress: Fn<ProgressInfo, U>): U
+};
 
 export function progress<T>(info: ProgressInfo): TaskValue<T> {
-  return { isDone: () => false, result: () => { throw new Error() }, progress: () => info }
+  return { isDone: () => false, result: () => { throw new Error() }, progress: () => info, on: (_, onProgress) => onProgress(info) }
 }
 
 export function done<T>(result: Result<T>): TaskValue<T> {
-  return { isDone: () => true, progress: () => { throw new Error() }, result: () => result }
+  return { isDone: () => true, progress: () => { throw new Error() }, result: () => result, on: (onDone, _) => onDone(result) }
 }
 
 export interface TaskController<T> extends ProgressInfo {

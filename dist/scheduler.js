@@ -23,10 +23,10 @@ export const NOOP_TASK_HANDLE = {
     waitFor: (promise, info) => promise,
 };
 export function progress(info) {
-    return { isDone: () => false, result: () => { throw new Error(); }, progress: () => info };
+    return { isDone: () => false, result: () => { throw new Error(); }, progress: () => info, on: (_, onProgress) => onProgress(info) };
 }
 export function done(result) {
-    return { isDone: () => true, progress: () => { throw new Error(); }, result: () => result };
+    return { isDone: () => true, progress: () => { throw new Error(); }, result: () => result, on: (onDone, _) => onDone(result) };
 }
 const RESOLVED = Promise.resolve();
 class Barrier {

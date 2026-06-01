@@ -470,14 +470,13 @@ export class ValuesContainer {
             return srcs[0];
         if (!uniqueValues(srcs))
             throw new Error(`Duplicate sources`);
-        const cached = iter(VALUES_GRAPH.nodes.keys())
-            .filter(({ content }) => content instanceof Tuple && exactContentAndOrder(content.sources, srcs))
-            .map(({ content }) => content)
-            .first();
-        if (cached.isPresent())
-            return cached.get();
-        if (iter(VALUES_GRAPH.nodes.keys()).any(({ content }) => content instanceof Tuple && exactContent(content.sources, srcs)))
-            throw new Error(`Tuple with different order already exist`);
+        // const cached = iter(VALUES_GRAPH.nodes.keys())
+        //   .filter(({ content }) => content instanceof Tuple && exactContentAndOrder(content.sources as SourcefyArray<T>, srcs))
+        //   .map(({ content }) => content as Tuple<T>)
+        //   .first();
+        // if (cached.isPresent()) return cached.get() as any as Source<SingleTuple<T>>;
+        // if (iter(VALUES_GRAPH.nodes.keys()).any(({ content }) => content instanceof Tuple && exactContent(content.sources as SourcefyArray<T>, srcs)))
+        //   throw new Error(`Tuple with different order already exist`);
         const result = tuple(...srcs);
         const node = this.node(result);
         srcs.forEach(s => VALUES_GRAPH.add(node, this.node(s)));

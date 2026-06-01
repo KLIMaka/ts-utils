@@ -129,7 +129,7 @@ test('tuple1', () => {
   const tr1 = values.transformedTuple('tr1', [a, tr], x => x.toString());
 
   expect(() => values.transformedTuple('', [a, a], x => x.toString())).toThrow('Duplicate sources');
-  expect(() => values.transformedTuple('', [tr, a], x => x.toString())).toThrow('Tuple with different order already exist');
+  // expect(() => values.transformedTuple('', [tr, a], x => x.toString())).toThrow('Tuple with different order already exist');
 
   const log: string[] = [];
   tr1.subscribe(a => log.push(a));
@@ -284,3 +284,23 @@ test('children order', async () => {
 
   await r.dispose();
 });
+
+test('marked for delete', async () => {
+  const r = new ValuesContainer('root');
+  const c = r.createChild('c');
+  const c1 = r.createChild('c1')
+
+  const a = c.value('a', 42);
+  const b = c.value('b', 12);
+  const apb = c1.transformedTuple('a+b', [a, b], ([a, b]) => a + b);
+  const d = c.value('d', 22);
+  c1.handleStandalone([apb, d], nil());
+
+  const c1DisposePromise = c1.dispose();
+
+  const e = c.transformedTuple('e', [a, b], ([a, b]) => a + b);
+  c.handleStandalone([e], nil());
+
+  await c1DisposePromise;
+  await r.dispose();
+})

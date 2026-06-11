@@ -6,11 +6,17 @@ function work(title, task) {
 export function tuple(work) {
     return async (handle, ...input) => [await work(handle, ...input)];
 }
+export function field(field, work) {
+    return async (handle, ...input) => ({ [field]: await work(handle, ...input) });
+}
 function pass(work) {
     return async (handle, ...input) => [...input, await work(handle, ...input)];
 }
 function passTuple(work) {
     return async (handle, ...input) => [...input, ...(await work(handle, ...input))];
+}
+function passField(field, work) {
+    return async (handle, ...input) => [...input.slice(0, -1), { ...input[input.length - 1], [field]: await work(handle, ...input) }];
 }
 function seq(tasks, defaultInput) {
     return async (handle, ...input) => {
@@ -79,8 +85,20 @@ export class WorkBuilder {
         this.tasks.push(passTuple(work));
         return this;
     }
-    stepSub(task) {
-        this.tasks.push(task);
+    thenNamed(title, fieldId, task) {
+        this.tasks.push(tuple(field(fieldId, work(title, task))));
+        return this;
+    }
+    thenNamedPass(title, fieldId, task) {
+        this.tasks.push(passField(fieldId, work(title, task)));
+        return this;
+    }
+    thenWorkNamed(fieldId, work) {
+        this.tasks.push(tuple(field(fieldId, work)));
+        return this;
+    }
+    thenWorkPassNamed(fieldId, work) {
+        this.tasks.push(passField(fieldId, work));
         return this;
     }
     factory(taskFactory) {

@@ -14,6 +14,7 @@ export type SingleTuple<T> = T extends [infer Item] ? Item : T;
 export type First<T> = T extends [infer First, ...any] ? First : T extends Array<infer Item> ? Item : never;
 export type Second<T> = T extends [any, infer Second, ...any] ? Second : T extends Array<infer Item> ? Item : never;
 export type Rest<T> = T extends [any, ...infer Rest] ? Rest : never;
+export type ButLast<T> = T extends [...infer ButLast, any] ? ButLast : never;
 export type Last<T> = T extends [...any, infer Last] ? Last : never;
 export type Iter<N extends number, IT extends any[] = []> = Length<IT> extends N ? IT : Iter<N, [any, ...IT]>;
 export type Next<IT extends any[]> = [any, ...IT];

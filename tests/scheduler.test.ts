@@ -1,7 +1,7 @@
 import { DefaultScheduler } from "../src/scheduler";
 import { begin } from "../src/work";
 import { getOrCreate, range } from "../src/collections";
-import { Consumer, pair } from "../src/types";
+import { Consumer, pair, ButLast } from "../src/types";
 import { ValuesContainer } from "../src/callbacks";
 
 
@@ -372,4 +372,53 @@ test('waitMaybe', async () => {
   await nextLoop();
   await nextLoop();
   expect(stage).toBe(999);
+});
+
+test('field-work', async () => {
+  let cb: Consumer<number> = () => { };
+  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
+  const nextLoop = () => run(cb);
+
+  const work = begin()
+    .thenNamed('', 'foo', async () => 42)
+    .thenNamed('', 'bar', async ({ foo }) => foo + 1)
+    .thenNamed('', 'baz', async ({ bar }) => bar * 2)
+    .finishUntuple()
+
+  const task = s.exec(work);
+  await nextLoop();
+  expect(task.task.get().result().getOk()).toEqual({ baz: 43 * 2 })
+
+  const work1 = begin()
+    .thenNamed('', 'foo', async () => 42)
+    .thenNamedPass('', 'bar', async ({ foo }) => foo + 1)
+    .thenNamedPass('', 'baz', async ({ bar }) => bar * 2)
+    .finishUntuple();
+
+  const task1 = s.exec(work1);
+  await nextLoop();
+  expect(task1.task.get().result().getOk()).toEqual({ foo: 42, bar: 43, baz: 43 * 2 })
+
+  const subwork = begin()
+    .input<{ foo: number }>()
+    .then('', async ({ foo }) => foo + 1)
+    .finishUntuple();
+
+  const work2 = begin()
+    .thenNamed('', 'foo', async () => 42)
+    .thenWorkNamed('bar', subwork)
+    .finishUntuple();
+
+  const task2 = s.exec(work2);
+  await nextLoop();
+  expect(task2.task.get().result().getOk()).toEqual({ bar: 43 })
+
+  const work3 = begin()
+    .thenNamed('', 'foo', async () => 42)
+    .thenWorkPassNamed('bar', subwork)
+    .finishUntuple();
+
+  const task3 = s.exec(work3);
+  await nextLoop();
+  expect(task3.task.get().result().getOk()).toEqual({ foo: 42, bar: 43 })
 });

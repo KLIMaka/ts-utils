@@ -1,6 +1,6 @@
 import { TaskHandle } from "./scheduler";
 import { iter } from "./iter";
-import { BiConsumer, First, Fn, first as first1 } from "./types";
+import { BiConsumer, ButLast, First, Fn, Last, first as first1 } from "./types";
 
 export type Work<I extends any[] = [], O = void> = (handle: TaskHandle, ...input: I) => Promise<O>
 
@@ -12,12 +12,20 @@ export function tuple<I extends any[], O>(work: Work<I, O>): Work<I, [O]> {
   return async (handle, ...input) => [await work(handle, ...input)];
 }
 
+export function field<I extends any[], O, K extends string>(field: K, work: Work<I, O>): Work<I, { [P in K]: O }> {
+  return async (handle, ...input) => ({ [field]: await work(handle, ...input) } as { [P in K]: O });
+}
+
 function pass<I extends any[], O>(work: Work<I, O>): Work<I, [...I, O]> {
   return async (handle, ...input) => [...input, await work(handle, ...input)];
 }
 
 function passTuple<I extends any[], O extends any[]>(work: Work<I, O>): Work<I, [...I, ...O]> {
   return async (handle, ...input) => [...input, ...(await work(handle, ...input))];
+}
+
+function passField<I extends any[], O, K extends string>(field: K, work: Work<I, O>): Work<I, [...ButLast<I>, Last<I> & O]> {
+  return async (handle, ...input) => [...input.slice(0, -1), { ...input[input.length - 1], [field]: await work(handle, ...input) }] as [...ButLast<I>, Last<I> & O];
 }
 
 function seq<I extends any[], O>(tasks: Work<any, any>[], defaultInput?: I): Work<I, O> {
@@ -104,10 +112,26 @@ export class WorkBuilder<SeqInput extends any[] = [], ParallelInput extends any[
     return this as any as WorkBuilder<[...SeqInput, ...T], [], GlobalInput>;
   }
 
-  stepSub<T extends any[]>(task: Work<SeqInput, T>): WorkBuilder<T, [], GlobalInput> {
-    this.tasks.push(task);
-    return this as any as WorkBuilder<T, [], GlobalInput>;
+  thenNamed<T, K extends string>(title: string, fieldId: K, task: (...i: SeqInput) => Promise<T>): WorkBuilder<[{ [P in K]: T }], [], GlobalInput> {
+    this.tasks.push(tuple(field(fieldId, work(title, task))));
+    return this as any as WorkBuilder<[{ [P in K]: T }], [], GlobalInput>;
   }
+
+  thenNamedPass<T, K extends string>(title: string, fieldId: K, task: (...i: SeqInput) => Promise<T>): WorkBuilder<[...ButLast<SeqInput>, Last<SeqInput> & { [P in K]: T }], [], GlobalInput> {
+    this.tasks.push(passField(fieldId, work(title, task)));
+    return this as any as WorkBuilder<[...ButLast<SeqInput>, Last<SeqInput> & { [P in K]: T }], [], GlobalInput>;
+  }
+
+  thenWorkNamed<T, K extends string>(fieldId: K, work: Work<SeqInput, T>): WorkBuilder<[{ [P in K]: T }], [], GlobalInput> {
+    this.tasks.push(tuple(field(fieldId, work)));
+    return this as any as WorkBuilder<[{ [P in K]: T }], [], GlobalInput>;
+  }
+
+  thenWorkPassNamed<T, K extends string>(fieldId: K, work: Work<SeqInput, T>): WorkBuilder<[...ButLast<SeqInput>, Last<SeqInput> & { [P in K]: T }], [], GlobalInput> {
+    this.tasks.push(passField(fieldId, work));
+    return this as any as WorkBuilder<[...ButLast<SeqInput>, Last<SeqInput> & { [P in K]: T }], [], GlobalInput>;
+  }
+
 
   factory<T>(taskFactory: (builder: WorkBuilder, ...i: SeqInput) => Work<any, T>): WorkBuilder<[T], [], GlobalInput> {
     this.tasks.push(async (handle, ...input) => {

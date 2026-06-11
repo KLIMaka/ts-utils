@@ -14,7 +14,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "moduleResolution": "bundler",
-    "baseUrl": "./src",
     "allowSyntheticDefaultImports": true,
   },
   "include": [

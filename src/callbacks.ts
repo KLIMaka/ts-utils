@@ -1,10 +1,10 @@
 import { Draft, produce } from "immer";
 import Optional from "optional-js";
+import { getOrCreate, length } from "./collections";
 import { DirectionalGraph } from "./graph";
 import { iter } from "./iter";
 import { field, objectKeys } from "./objects";
-import { BiConsumer, BiFn, BiPred, Consumer, Fn, MultiFn, SingleTuple, Supplier, Transform, identity, nil, refEq, result, resultAsync, second, secondArg } from "./types";
-import { forEach, getOrCreate, length } from "./collections";
+import { BiConsumer, BiFn, BiPred, Consumer, Fn, MultiFn, SingleTuple, Supplier, Transform, identity, nil, refEq, result, resultAsync, secondArg } from "./types";
 
 export type ChangeCallback<T> = BiConsumer<T, number>;
 export type Disconnector = Consumer<void>;

@@ -1,10 +1,10 @@
 import { produce } from "immer";
 import Optional from "optional-js";
+import { getOrCreate, length } from "./collections";
 import { DirectionalGraph } from "./graph";
 import { iter } from "./iter";
 import { field, objectKeys } from "./objects";
 import { identity, nil, refEq, result, resultAsync, secondArg } from "./types";
-import { getOrCreate, length } from "./collections";
 function arrayEqImpl(arr1, arr2, eqf = (l, r) => l === r) {
     if (arr1 === null || arr2 === null)
         return false;

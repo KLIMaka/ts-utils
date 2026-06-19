@@ -8,6 +8,7 @@ import { Work } from "./work";
 
 export type Recepie<Input extends any[], Output> = (...input: Input) => Promise<Output>
 type Recepify<T> = { [P in keyof T]: Recepie<any, T[P]> }
+type Arr<T> = T extends any[] ? T : never;
 
 export function cookbook<Input>(): { input: Recepie<[], Input>, book: Cookbook<Input> } {
   const input = {} as any as Recepie<[], Input>;
@@ -31,10 +32,10 @@ export class Cookbook<GlobalInput> {
 
   recepie<Input extends any[], Output>(label: string, args: Recepify<Input>, recepie: MultiFn<Input, Promise<Output>>): Work<Input, Output> {
     const wrapped = wrapRecepie(label, recepie);
-    return this.inject(args, wrapped);
+    return this.paste(args, wrapped);
   }
 
-  inject<Input extends any[], Output>(args: Recepify<Input>, work: Work<Input, Output>): Work<Input, Output> {
+  paste<Input extends any[], Output>(args: Recepify<Input>, work: Work<Input, Output>): Work<Input, Output> {
     this.recepiesGraph.addNode(work);
     args.forEach(a => this.recepiesGraph.add(a, work));
     this.args.set(work, args);
@@ -43,7 +44,7 @@ export class Cookbook<GlobalInput> {
 
   chapter<Input extends any[], Output>(args: Recepify<Input>, factory: MultiFn<[Cookbook<Input>, Work<any, Input>, ...Input], Work<any, Output>>): Work<Input, Output> {
     const { book, input } = cookbook<Input>();
-    return this.inject(args, async (handle, ...args) => {
+    return this.paste(args, async (handle, ...args) => {
       const work = factory(book, input, ...args);
       return book.cook(work, args)(handle);
     });
@@ -55,22 +56,37 @@ export class Cookbook<GlobalInput> {
     values.set(recepie, result);
   }
 
-  cook<Output>(recepie: Recepie<any, Output>, input: GlobalInput,): Work<[], Output> {
-    const topoord = iter(this.recepiesGraph.ordered(recepie, 'from'))
+  private extractGroups(recepie: Recepie<any, any>): Work<any, any>[][] {
+    return iter(this.recepiesGraph.ordered(recepie, 'from'))
       .groupEntries(field('order'), field('node'))
       .collect()
       .toSorted((l, r) => r[0] - l[0])
       .map(second)
       .filter(r => r[0] !== this.input);
+  }
+
+  private async runGroups<Output>(handle: TaskHandle, groups: Work<any, any>[][], values: Map<Recepie<any, any>, any>, recepie: Recepie<any, Output>) {
+    const recepieHandle = handle.fork(groups.length);
+    for (const group of groups) {
+      const h = recepieHandle.fork(group.length);
+      await Promise.all(group.map(r => this.cookRecepie(h, values, r)));
+    }
+    return values.get(recepie);
+  }
+
+  cook<Output>(recepie: Recepie<any, Output>, input: GlobalInput,): Work<[], Output> {
+    const groups = this.extractGroups(recepie);
     const values = new Map<Recepie<any, any>, any>();
     values.set(this.input, input);
-    return async handle => {
-      const recepieHandle = handle.fork(topoord.length);
-      for (const group of topoord) {
-        const h = recepieHandle.fork(group.length);
-        await Promise.all(group.map(r => this.cookRecepie(h, values, r)));
-      }
-      return values.get(recepie);
+    return async handle => this.runGroups(handle, groups, values, recepie);
+  }
+
+  extract<Output>(recepie: Recepie<any, Output>): Work<Arr<GlobalInput>, Output> {
+    const topoord = this.extractGroups(recepie);
+    const values = new Map<Recepie<any, any>, any>();
+    return async (handle, ...args) => {
+      values.set(this.input, args);
+      return this.runGroups(handle, topoord, values, recepie);
     }
   }
 }

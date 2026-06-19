@@ -3,7 +3,7 @@ import { range } from "../src/collections";
 import { cookbook } from "../src/cookbook"
 import { sum } from "../src/mathutils";
 import { DefaultScheduler } from "../src/scheduler";
-import { Consumer } from "../src/types";
+import { Consumer, pair } from "../src/types";
 
 async function run(cb: Consumer<number>): Promise<void> {
   cb(0);
@@ -47,4 +47,23 @@ test('chapter', async () => {
   await NEXTLOOP();
 
   expect((await task.end()).unwrap()).toBe(10 + 20 + 30 + 40 + 50 + 60 + 70 + 80 + 90);
+});
+
+test('extract', async () => {
+
+  const { book, input } = cookbook<[number, number]>();
+
+  const sum = book.recepie('sum', [input], async ([x, y]) => x + y);
+  const diff = book.recepie('diff', [input], async ([x, y]) => x - y);
+  const mul = book.recepie('mul', [sum, diff], async (sum, diff) => sum * diff);
+  const extracted = book.extract(mul);
+
+  const { book: book1, input: input1 } = cookbook<{ x: number, y: number }>();
+  const x = book1.recepie('x', [input1], async ({ x }) => x);
+  const y = book1.recepie('y', [input1], async ({ y }) => y);
+  const pasted = book1.paste([x, y], extracted);
+
+  const task = SCHEDULER.exec(book1.cook(pasted, { x: 12, y: 42 }));
+  await NEXTLOOP();
+  expect((await task.end()).unwrap()).toBe((12 + 42) * (12 - 42));
 });

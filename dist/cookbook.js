@@ -20,9 +20,9 @@ export class Cookbook {
     }
     recepie(label, args, recepie) {
         const wrapped = wrapRecepie(label, recepie);
-        return this.inject(args, wrapped);
+        return this.paste(args, wrapped);
     }
-    inject(args, work) {
+    paste(args, work) {
         this.recepiesGraph.addNode(work);
         args.forEach(a => this.recepiesGraph.add(a, work));
         this.args.set(work, args);
@@ -30,7 +30,7 @@ export class Cookbook {
     }
     chapter(args, factory) {
         const { book, input } = cookbook();
-        return this.inject(args, async (handle, ...args) => {
+        return this.paste(args, async (handle, ...args) => {
             const work = factory(book, input, ...args);
             return book.cook(work, args)(handle);
         });
@@ -40,22 +40,34 @@ export class Cookbook {
         const result = await recepie(handle, ...args);
         values.set(recepie, result);
     }
-    cook(recepie, input) {
-        const topoord = iter(this.recepiesGraph.ordered(recepie, 'from'))
+    extractGroups(recepie) {
+        return iter(this.recepiesGraph.ordered(recepie, 'from'))
             .groupEntries(field('order'), field('node'))
             .collect()
             .toSorted((l, r) => r[0] - l[0])
             .map(second)
             .filter(r => r[0] !== this.input);
+    }
+    async runGroups(handle, groups, values, recepie) {
+        const recepieHandle = handle.fork(groups.length);
+        for (const group of groups) {
+            const h = recepieHandle.fork(group.length);
+            await Promise.all(group.map(r => this.cookRecepie(h, values, r)));
+        }
+        return values.get(recepie);
+    }
+    cook(recepie, input) {
+        const groups = this.extractGroups(recepie);
         const values = new Map();
         values.set(this.input, input);
-        return async (handle) => {
-            const recepieHandle = handle.fork(topoord.length);
-            for (const group of topoord) {
-                const h = recepieHandle.fork(group.length);
-                await Promise.all(group.map(r => this.cookRecepie(h, values, r)));
-            }
-            return values.get(recepie);
+        return async (handle) => this.runGroups(handle, groups, values, recepie);
+    }
+    extract(recepie) {
+        const topoord = this.extractGroups(recepie);
+        const values = new Map();
+        return async (handle, ...args) => {
+            values.set(this.input, args);
+            return this.runGroups(handle, topoord, values, recepie);
         };
     }
 }

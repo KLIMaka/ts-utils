@@ -182,3 +182,5 @@ export function notNullOrUndefined<T>(value: T | null | undefined): T {
   if (value === undefined || value === null) throw new Error();
   return value;
 }
+
+export function typeToken<T>(): T { return undefined as T }

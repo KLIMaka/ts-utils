@@ -101,4 +101,5 @@ export declare function right<T, U>(value: U): Union<T, U>;
 export declare function notNull<T>(value: T | null): T;
 export declare function notUndefined<T>(value: T | undefined): T;
 export declare function notNullOrUndefined<T>(value: T | null | undefined): T;
+export declare function typeToken<T>(): T;
 //# sourceMappingURL=types.d.ts.map

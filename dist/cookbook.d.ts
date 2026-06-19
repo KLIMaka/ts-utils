@@ -1,4 +1,4 @@
-import { MultiFn } from "./types";
+import { BiFn, MultiFn } from "./types";
 import { Work } from "./work";
 export type Recepie<Input extends any[], Output> = (...input: Input) => Promise<Output>;
 type Recepify<T> = {
@@ -9,6 +9,7 @@ export declare function cookbook<Input>(): {
     input: Recepie<[], Input>;
     book: Cookbook<Input>;
 };
+export declare function cookbookWork<Input extends any[], Output>(token: Input, factory: BiFn<Cookbook<Input>, Work<any, Input>, Work<any, Output>>): Work<Arr<Input>, Output>;
 export declare class Cookbook<GlobalInput> {
     private input;
     private recepiesGraph;

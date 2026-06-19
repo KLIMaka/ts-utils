@@ -124,4 +124,5 @@ export function notNullOrUndefined(value) {
         throw new Error();
     return value;
 }
+export function typeToken() { return undefined; }
 //# sourceMappingURL=types.js.map

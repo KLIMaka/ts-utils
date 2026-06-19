@@ -7,6 +7,11 @@ export function cookbook() {
     const book = new Cookbook(input);
     return { input, book };
 }
+export function cookbookWork(token, factory) {
+    const { book, input } = cookbook();
+    const final = factory(book, input);
+    return book.extract(final);
+}
 function wrapRecepie(label, recepie) {
     return async (handle, ...args) => await handle.waitFor(recepie(...args), label);
 }

@@ -1,9 +1,9 @@
 import { ValuesContainer } from "../src/callbacks";
 import { range } from "../src/collections";
-import { cookbook } from "../src/cookbook"
+import { cookbook, cookbookWork } from "../src/cookbook";
 import { sum } from "../src/mathutils";
 import { DefaultScheduler } from "../src/scheduler";
-import { Consumer, pair } from "../src/types";
+import { Consumer, typeToken } from "../src/types";
 
 async function run(cb: Consumer<number>): Promise<void> {
   cb(0);
@@ -67,3 +67,13 @@ test('extract', async () => {
   await NEXTLOOP();
   expect((await task.end()).unwrap()).toBe((12 + 42) * (12 - 42));
 });
+
+test('cookbookwork', async () => {
+  const work = cookbookWork(typeToken<[number, number]>(), (book, input) => {
+    return book.recepie('', [input], async ([a, b]) => a + b);
+  });
+
+  const task = SCHEDULER.exec(handle => work(handle, 12, 42));
+  await NEXTLOOP();
+  expect((await task.end()).unwrap()).toBe(12 + 42);
+})

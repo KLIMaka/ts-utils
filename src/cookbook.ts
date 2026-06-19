@@ -3,7 +3,7 @@ import { direction, DirectionalGraph } from "./graph";
 import { iter } from "./iter";
 import { checkNotUndefined, field } from "./objects";
 import { TaskHandle } from "./scheduler";
-import { Fn, MultiFn, second } from "./types";
+import { BiFn, Fn, MultiFn, second } from "./types";
 import { Work } from "./work";
 
 export type Recepie<Input extends any[], Output> = (...input: Input) => Promise<Output>
@@ -14,6 +14,12 @@ export function cookbook<Input>(): { input: Recepie<[], Input>, book: Cookbook<I
   const input = {} as any as Recepie<[], Input>;
   const book = new Cookbook<Input>(input);
   return { input, book };
+}
+
+export function cookbookWork<Input extends any[], Output>(token: Input, factory: BiFn<Cookbook<Input>, Work<any, Input>, Work<any, Output>>): Work<Arr<Input>, Output> {
+  const { book, input } = cookbook<Input>();
+  const final = factory(book, input);
+  return book.extract(final);
 }
 
 function wrapRecepie<Input extends any[], Output>(label: string, recepie: Recepie<Input, Output>): Work<Input, Output> {

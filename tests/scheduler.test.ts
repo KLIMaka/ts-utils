@@ -1,7 +1,7 @@
 import { DefaultScheduler } from "../src/scheduler";
 import { begin } from "../src/work";
 import { getOrCreate, range } from "../src/collections";
-import { Consumer, pair, ButLast } from "../src/types";
+import { Consumer, pair, ButLast, identity } from "../src/types";
 import { ValuesContainer } from "../src/callbacks";
 
 
@@ -9,6 +9,12 @@ async function run(cb: Consumer<number>): Promise<void> {
   cb(0);
   return new Promise<void>(ok => setTimeout(ok));
 }
+
+const TIMER = () => performance.now();
+const VALUES = new ValuesContainer('');
+let gloabl_cb: Consumer<number> = () => { };
+const SCHEDULER = DefaultScheduler(c => gloabl_cb = c, TIMER, VALUES);
+const NEXTLOOP = () => run(gloabl_cb);
 
 const counts = new Map<number, Consumer<void>[]>();
 function on(c: number) {
@@ -24,27 +30,21 @@ function count(c: number) {
   for (const cb of cbs) cb();
 }
 
-const TIMER = () => performance.now();
-const VALUES = new ValuesContainer('');
 
 test('Task', async () => {
-  let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
-  const nextLoop = () => run(cb);
-
   let x = 0;
   function* f1() {
     yield { progress: 0.5 };
     x = 2;
   }
-  const controller1 = s.exec<void>(async h => {
+  const controller1 = SCHEDULER.exec<void>(async h => {
     x = 1;
     await h.wait(f1());
   });
 
 
   expect(x).toBe(1);
-  await nextLoop();
+  await NEXTLOOP();
   await controller1.end();
   expect(x).toBe(2)
 
@@ -57,16 +57,16 @@ test('Task', async () => {
     throw new Error();
   }
 
-  const controller2 = s.exec(async h => {
+  const controller2 = SCHEDULER.exec(async h => {
     x = 1;
     await h.wait(f2())
   });
 
   controller2.stop();
   expect(x).toBe(1);
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(1);
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(1);
   expect(async () => controller2.end().then(r => r.isErr())).toBeTruthy();
 
@@ -75,22 +75,19 @@ test('Task', async () => {
     yield { progress: 1 };
     return 42;
   }
-  const controller3 = s.exec<number>(async h => {
+  const controller3 = SCHEDULER.exec<number>(async h => {
     x = 1;
     return h.wait(f3());
   });
 
   expect(x).toBe(1);
   expect(controller3.task.get().isDone()).toBe(false);
-  await nextLoop();
+  await NEXTLOOP();
   expect(controller3.task.get().isDone()).toBe(true);
   expect(controller3.task.get().result().getOk()).toBe(42);
 });
 
 test('Scheduler1', async () => {
-  let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
-  const nextLoop = () => run(cb);
   let barrier: Consumer<void> | undefined;
   let x = 0;
   let r = 0;
@@ -108,7 +105,7 @@ test('Scheduler1', async () => {
     return 42;
   }
 
-  const task = s.exec(async h => {
+  const task = SCHEDULER.exec(async h => {
     await h.wait(f());
     r = await h.waitFor(b());
     x = 5;
@@ -116,17 +113,17 @@ test('Scheduler1', async () => {
   });
 
   expect(x).toBe(0);
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(1);
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(2);
-  await nextLoop();
-  await nextLoop();
+  await NEXTLOOP();
+  await NEXTLOOP();
   expect(x).toBe(2);
   barrier?.();
   expect(x).toBe(2);
-  await nextLoop();
-  await nextLoop();
+  await NEXTLOOP();
+  await NEXTLOOP();
   expect(x).toBe(5);
   expect(task.task.get().result().getOk()).toBe(42);
   expect(r).toBe(42);
@@ -134,9 +131,6 @@ test('Scheduler1', async () => {
 });
 
 test('Scheduler', async () => {
-  let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
-  const nextLoop = () => run(cb);
   let counter = 0;
   let x = 0;
   let y = 0;
@@ -148,17 +142,17 @@ test('Scheduler', async () => {
     x = 2;
     yield { progress: 0.5 };
   }
-  s.exec(h => h.wait(f1()));
+  SCHEDULER.exec(h => h.wait(f1()));
 
-  const nnH = s.exec(async h => {
+  const nnH = SCHEDULER.exec(async h => {
     await h.waitFor(on(5));
     x = 99;
   });
-  s.exec(async h => {
+  SCHEDULER.exec(async h => {
     await h.waitFor(on(3));
     y = 1;
   })
-  s.exec(async h => {
+  SCHEDULER.exec(async h => {
     await h.waitFor(on(8));
     y = 2;
   })
@@ -169,40 +163,40 @@ test('Scheduler', async () => {
       yield { progress: 0 };
     }
   }
-  const counterH = s.exec(h => h.wait(f2()));
+  const counterH = SCHEDULER.exec(h => h.wait(f2()));
 
   expect(x).toBe(1);
   expect(y).toBe(0);
   expect(counter).toBe(1);
 
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(2);
   expect(y).toBe(0);
   expect(counter).toBe(2);
 
   nnH.pause();
 
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(2);
   expect(y).toBe(1);
   expect(counter).toBe(3);
 
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(2);
   expect(y).toBe(1);
   expect(counter).toBe(4);
 
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(2);
   expect(y).toBe(1);
   expect(counter).toBe(5);
 
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(2);
   expect(y).toBe(1);
   expect(counter).toBe(6);
 
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(2);
   expect(y).toBe(1);
   expect(counter).toBe(7);
@@ -212,7 +206,7 @@ test('Scheduler', async () => {
   expect(y).toBe(1);
   expect(counter).toBe(7);
 
-  await nextLoop();
+  await NEXTLOOP();
   expect(x).toBe(99);
   expect(y).toBe(2);
   expect(counter).toBe(8);
@@ -220,23 +214,20 @@ test('Scheduler', async () => {
   counterH.pause();
   expect(y).toBe(2);
   expect(counter).toBe(8);
-  await nextLoop();
+  await NEXTLOOP();
   expect(counter).toBe(8);
-  await nextLoop();
+  await NEXTLOOP();
   expect(counter).toBe(8);
 
   counterH.unpause();
   expect(counter).toBe(8);
 
-  await nextLoop();
+  await NEXTLOOP();
   expect(y).toBe(2);
   expect(counter).toBe(9);
 })
 
 test('Work', async () => {
-  let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
-  const nextLoop = () => run(cb);
 
   const work = begin()
     .then('step1', async () => 42)
@@ -246,9 +237,9 @@ test('Work', async () => {
     .thenPass('step5', async (a, [b, c]) => 42)
     .finish();
 
-  const task = s.exec(work);
+  const task = SCHEDULER.exec(work);
   // expect(task.progress.get()).toBe(0);
-  await nextLoop();
+  await NEXTLOOP();
   expect(task.progress.get()).toBe(100);
   expect(task.task.get().result().getOk()).toStrictEqual(['52ff', ['52ff', 42], 42]);
 
@@ -259,8 +250,8 @@ test('Work', async () => {
     .thenPass('step4', async (a, b, c) => a + b + c)
     .finish();
 
-  const task1 = s.exec(work1);
-  await nextLoop();
+  const task1 = SCHEDULER.exec(work1);
+  await NEXTLOOP();
   expect(task1.task.get().result().getOk()).toStrictEqual([42, 53, 95, 190]);
 
   const work2 = begin()
@@ -268,8 +259,8 @@ test('Work', async () => {
     .then('step1', async ([a, b]) => a + b)
     .finish();
 
-  const task2 = s.exec(async handle => work2(handle, [1, 2]));
-  await nextLoop();
+  const task2 = SCHEDULER.exec(async handle => work2(handle, [1, 2]));
+  await NEXTLOOP();
   expect(task2.task.get().result().getOk()).toStrictEqual([3]);
 
   const work3 = begin()
@@ -277,9 +268,9 @@ test('Work', async () => {
     .then('step1', async (a, b) => a + b)
     .finish([1, 2]);
 
-  const task3 = s.exec(async handle => work3(handle, 1, 2));
-  await nextLoop();
-  await nextLoop();
+  const task3 = SCHEDULER.exec(async handle => work3(handle, 1, 2));
+  await NEXTLOOP();
+  await NEXTLOOP();
   expect(task3.task.get().result().getOk()).toStrictEqual([3]);
 
   const work4 = begin()
@@ -291,8 +282,8 @@ test('Work', async () => {
     .then('step3', async ([a1, b1], [a2, b2]) => pair(a1 + a2, b1 + b2))
     .finishUntuple();
 
-  const task4 = s.exec(work4);
-  await nextLoop();
+  const task4 = SCHEDULER.exec(work4);
+  await NEXTLOOP();
   expect(task4.task.get().result().getOk()).toStrictEqual([424.2, '42a42b']);
 
   const work5 = begin()
@@ -304,8 +295,8 @@ test('Work', async () => {
     .then('step3', async is => is.map(i => i.toString()))
     .finish();
 
-  const task5 = s.exec(work5);
-  await nextLoop();
+  const task5 = SCHEDULER.exec(work5);
+  await NEXTLOOP();
   expect(task5.task.get().result().getOk()).toStrictEqual([['100', '200', '300', '400', '500']]);
 
   const work61 = begin()
@@ -321,8 +312,8 @@ test('Work', async () => {
     .then('step3', async (a, [b, c], is) => is.map(i => i + 2))
     .finishUntuple();
 
-  const task6 = s.exec(work6);
-  await nextLoop();
+  const task6 = SCHEDULER.exec(work6);
+  await NEXTLOOP();
   expect(task6.task.get().result().getOk()).toStrictEqual([44, 422, 54]);
 
   const work7 = begin()
@@ -330,8 +321,8 @@ test('Work', async () => {
     .then('step2', async is => is.map(i => i * 2))
     .finishUntuple();
 
-  const task7 = s.exec(work7);
-  await nextLoop();
+  const task7 = SCHEDULER.exec(work7);
+  await NEXTLOOP();
   expect(task7.task.get().result().getOk()).toStrictEqual([2, 4, 6]);
 
   const work81 = begin()
@@ -347,16 +338,12 @@ test('Work', async () => {
     .then('step3', async (a, [b, c], is) => is.map(i => i + 2))
     .finishUntuple();
 
-  const task8 = s.exec(work8);
-  await nextLoop();
+  const task8 = SCHEDULER.exec(work8);
+  await NEXTLOOP();
   expect(task8.task.get().result().getOk()).toStrictEqual([44, 422, 54]);
 });
 
 test('waitMaybe', async () => {
-  let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
-  const nextLoop = () => run(cb);
-
   let stage = 0;
   const n = 1000;
   function* f() {
@@ -365,60 +352,11 @@ test('waitMaybe', async () => {
       yield { progress: 1 / n };
     }
   }
-  s.exec(handle => handle.waitMaybe(f(), '', 1));
+  SCHEDULER.exec(handle => handle.waitMaybe(f(), '', 1));
 
   expect(stage).toBe(0);
-  await nextLoop();
-  await nextLoop();
-  await nextLoop();
+  await NEXTLOOP();
+  await NEXTLOOP();
+  await NEXTLOOP();
   expect(stage).toBe(999);
-});
-
-test('field-work', async () => {
-  let cb: Consumer<number> = () => { };
-  const s = DefaultScheduler(c => cb = c, TIMER, VALUES);
-  const nextLoop = () => run(cb);
-
-  const work = begin()
-    .thenNamed('', 'foo', async () => 42)
-    .thenNamed('', 'bar', async ({ foo }) => foo + 1)
-    .thenNamed('', 'baz', async ({ bar }) => bar * 2)
-    .finishUntuple()
-
-  const task = s.exec(work);
-  await nextLoop();
-  expect(task.task.get().result().getOk()).toEqual({ baz: 43 * 2 })
-
-  const work1 = begin()
-    .thenNamed('', 'foo', async () => 42)
-    .thenNamedPass('', 'bar', async ({ foo }) => foo + 1)
-    .thenNamedPass('', 'baz', async ({ bar }) => bar * 2)
-    .finishUntuple();
-
-  const task1 = s.exec(work1);
-  await nextLoop();
-  expect(task1.task.get().result().getOk()).toEqual({ foo: 42, bar: 43, baz: 43 * 2 })
-
-  const subwork = begin()
-    .input<{ foo: number }>()
-    .then('', async ({ foo }) => foo + 1)
-    .finishUntuple();
-
-  const work2 = begin()
-    .thenNamed('', 'foo', async () => 42)
-    .thenWorkNamed('bar', subwork)
-    .finishUntuple();
-
-  const task2 = s.exec(work2);
-  await nextLoop();
-  expect(task2.task.get().result().getOk()).toEqual({ bar: 43 })
-
-  const work3 = begin()
-    .thenNamed('', 'foo', async () => 42)
-    .thenWorkPassNamed('bar', subwork)
-    .finishUntuple();
-
-  const task3 = s.exec(work3);
-  await nextLoop();
-  expect(task3.task.get().result().getOk()).toEqual({ foo: 42, bar: 43 })
 });

@@ -1,9 +1,23 @@
+import { match } from 'ts-pattern';
 import { chain, getOrCreate, map, slidingPairs, reduce } from './collections';
 import { iter } from './iter';
 import { memoize } from './mathutils';
-import { Fn, Pred } from './types';
+import { checkNotUndefined, field } from './objects';
+import { Fn, Pred, true_ } from './types';
 
 export type Links<T> = { to: Set<T>, from: Set<T> };
+export type Direction = 'from' | 'to';
+export function direction<T>(dir: Direction): Fn<Links<T>, Set<T>> {
+  return match(dir)
+    .returnType<Fn<Links<T>, Set<T>>>()
+    .with('from', () => l => l.from)
+    .with('to', () => l => l.to)
+    .exhaustive();
+}
+export function opposite(dir: Direction): Direction {
+  return dir === 'from' ? 'to' : 'from';
+}
+
 export class DirectionalGraph<T> {
   readonly nodes = new Map<T, Links<T>>();
 
@@ -28,29 +42,44 @@ export class DirectionalGraph<T> {
     this.nodes.delete(n);
   }
 
-  order(node: T, f: Fn<Links<T>, Set<T>> = l => l.to): number {
-    const links = this.nodes.get(node);
+  orderNamed(start: T, dir: Direction = 'to'): number {
+    return this.order(start, direction(dir));
+  }
+
+  order(start: T, dir = direction<T>('to')): number {
+    const links = this.nodes.get(start);
     if (links === undefined) return 0;
-    const flinks = f(links);
+    const flinks = dir(links);
     if (flinks.size === 0) return 0;
-    return reduce(map(flinks, n => this.order(n, f)), Math.max, 0) + 1;
+    return reduce(map(flinks, n => this.order(n, dir)), Math.max, 0) + 1;
   }
 
-  orderedTo(node: T) {
+  orderedTo(node: T): T[] {
+    return this.ordered(node, 'from')
+      .sort(({ order: l }, { order: r }) => r - l)
+      .map(field('node'));
+  }
+
+
+  ordered(start: T, dir: Direction): { node: T, order: number }[] {
     const result = new Set<T>();
-    result.add(node);
-    for (const n of result) this.nodes.get(n)?.from.forEach(n => result.add(n));
-    const order = memoize((n: T) => this.order(n));
-    return [...result].sort((l, r) => order(r) - order(l));
+    result.add(start);
+    const dirf = direction<T>(dir);
+    const oppositeDirF = direction<T>(opposite(dir));
+    for (const n of result)
+      dirf(checkNotUndefined(this.nodes.get(n)))
+        .forEach(n => result.add(n));
+    const order = memoize((n: T) => this.order(n, oppositeDirF));
+    return [...result].map(node => ({ node, order: order(node) }));
   }
 
-  orderedAll(f: Fn<Links<T>, Set<T>> = l => l.to) {
-    const order = memoize((n: T) => this.order(n, f));
-    return [...this.nodes.keys()].sort((l, r) => order(r) - order(l));
+  orderedAll(dir: Direction = 'to') {
+    return this.orderedOnly(true_(), dir);
   }
 
-  orderedOnly(pred: Pred<T>, f: Fn<Links<T>, Set<T>> = l => l.to) {
-    const order = memoize((n: T) => this.order(n, f));
+  orderedOnly(pred: Pred<T>, dir: Direction = 'to') {
+    const dirF = direction<T>(dir);
+    const order = memoize((n: T) => this.order(n, dirF));
     return [...this.nodes.keys().filter(pred)].sort((l, r) => order(r) - order(l));
   }
 

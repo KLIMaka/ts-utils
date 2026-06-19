@@ -45,7 +45,8 @@ export declare function asyncOptional<T>(src: Optional<Promise<T>>): Promise<Opt
 export declare function zipOptional<T, U>(l: Optional<T>, r: Optional<U>): Optional<[T, U]>;
 export declare function asyncFlatMapOptional<T, U>(src: Optional<T>, mapper: Fn<T, Promise<Optional<U>>>): Promise<Optional<U>>;
 export declare function strcmpci(str1: string, str2: string): boolean;
-export declare function checkNotNull<T>(value: T | null, message: string): T;
+export declare function checkNotNull<T>(value: T | null, message?: string): T;
+export declare function checkNotUndefined<T>(value: T | undefined, message?: string): T;
 export type Id = {
     value: number;
 } & Disposable;

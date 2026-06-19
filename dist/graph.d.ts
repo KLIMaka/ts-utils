@@ -3,6 +3,9 @@ export type Links<T> = {
     to: Set<T>;
     from: Set<T>;
 };
+export type Direction = 'from' | 'to';
+export declare function direction<T>(dir: Direction): Fn<Links<T>, Set<T>>;
+export declare function opposite(dir: Direction): Direction;
 export declare class DirectionalGraph<T> {
     readonly nodes: Map<T, Links<T>>;
     addNode(label: T): {
@@ -12,10 +15,15 @@ export declare class DirectionalGraph<T> {
     add(from: T, to: T): void;
     addChain(chain: T[]): void;
     remove(n: T): void;
-    order(node: T, f?: Fn<Links<T>, Set<T>>): number;
+    orderNamed(start: T, dir?: Direction): number;
+    order(start: T, dir?: Fn<Links<T>, Set<T>>): number;
     orderedTo(node: T): T[];
-    orderedAll(f?: Fn<Links<T>, Set<T>>): T[];
-    orderedOnly(pred: Pred<T>, f?: Fn<Links<T>, Set<T>>): T[];
+    ordered(start: T, dir: Direction): {
+        node: T;
+        order: number;
+    }[];
+    orderedAll(dir?: Direction): T[];
+    orderedOnly(pred: Pred<T>, dir?: Direction): T[];
     findCycle(): T[];
     subgraphs(): T[][];
 }

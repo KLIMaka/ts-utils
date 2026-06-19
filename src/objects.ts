@@ -120,8 +120,13 @@ export function strcmpci(str1: string, str2: string) {
   return str1.toLowerCase() === str2.toLowerCase();
 }
 
-export function checkNotNull<T>(value: T | null, message: string): T {
+export function checkNotNull<T>(value: T | null, message = ''): T {
   if (value === null) throw new Error(message);
+  return value;
+}
+
+export function checkNotUndefined<T>(value: T | undefined, message = ''): T {
+  if (value === undefined) throw new Error(message);
   return value;
 }
 

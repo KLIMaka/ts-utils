@@ -250,7 +250,6 @@ export class SchedulerImpl {
         })
             .finally(() => {
             this.tasksImpl.mod(ts => ts.filter(t => t !== descriptor));
-            taskValues.dispose();
             this.localValues.remove(taskValues);
         });
         descriptor.setTask(wrappedTask);

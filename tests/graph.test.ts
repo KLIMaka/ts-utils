@@ -35,6 +35,10 @@ test('graph', () => {
   expect(graph.findCycle()).toStrictEqual(['d', 'a', 'b']);
 });
 
+// a b f    g
+// d   c    h
+// e x
+
 test('order', () => {
   const graph = new DirectionalGraph<string>();
   graph.add('a', 'd');
@@ -51,7 +55,7 @@ test('order', () => {
   expect(graph.orderedTo('e')).toStrictEqual(['a', 'b', 'f', 'd', 'c', 'e']);
   expect(graph.orderedTo('x')).toStrictEqual(['a', 'b', 'f', 'd', 'x']);
   expect(graph.orderedAll()).toStrictEqual(['a', 'b', 'f', 'd', 'c', 'g', 'e', 'h', 'x']);
-  expect(graph.orderedAll(n => n.from)).toStrictEqual(['e', 'x', 'd', 'h', 'a', 'b', 'c', 'f', 'g']);
+  expect(graph.orderedAll('from')).toStrictEqual(['e', 'x', 'd', 'h', 'a', 'b', 'c', 'f', 'g']);
 });
 
 test('value dependency', () => {
@@ -78,3 +82,14 @@ test('subgraph', () => {
   graph.add('a', 'e');
   expect([...graph.subgraphs()]).toStrictEqual([['b', 'c', 'a', 'e', 'f', 'd']]);
 });
+
+test('connectedOrder', () => {
+  const g = new DirectionalGraph<string>();
+  g.add('a', 'b');
+  g.add('a', 'c');
+  g.add('c', 'd');
+  g.add('a', 'e');
+
+  expect(g.ordered('a', 'from')).toEqual([{ node: 'a', order: 2 }]);
+  expect(g.ordered('a', 'to')).toEqual([{ node: 'a', order: 0 }, { node: 'b', order: 1 }, { node: 'c', order: 1 }, { node: 'e', order: 1 }, { node: 'd', order: 2 }]);
+})

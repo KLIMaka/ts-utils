@@ -1,6 +1,19 @@
+import { match } from 'ts-pattern';
 import { chain, getOrCreate, map, slidingPairs, reduce } from './collections';
 import { iter } from './iter';
 import { memoize } from './mathutils';
+import { checkNotUndefined, field } from './objects';
+import { true_ } from './types';
+export function direction(dir) {
+    return match(dir)
+        .returnType()
+        .with('from', () => l => l.from)
+        .with('to', () => l => l.to)
+        .exhaustive();
+}
+export function opposite(dir) {
+    return dir === 'from' ? 'to' : 'from';
+}
 export class DirectionalGraph {
     nodes = new Map();
     addNode(label) {
@@ -22,29 +35,40 @@ export class DirectionalGraph {
         node.from.forEach(n1 => this.nodes.get(n1)?.to.delete(n));
         this.nodes.delete(n);
     }
-    order(node, f = l => l.to) {
-        const links = this.nodes.get(node);
+    orderNamed(start, dir = 'to') {
+        return this.order(start, direction(dir));
+    }
+    order(start, dir = direction('to')) {
+        const links = this.nodes.get(start);
         if (links === undefined)
             return 0;
-        const flinks = f(links);
+        const flinks = dir(links);
         if (flinks.size === 0)
             return 0;
-        return reduce(map(flinks, n => this.order(n, f)), Math.max, 0) + 1;
+        return reduce(map(flinks, n => this.order(n, dir)), Math.max, 0) + 1;
     }
     orderedTo(node) {
+        return this.ordered(node, 'from')
+            .sort(({ order: l }, { order: r }) => r - l)
+            .map(field('node'));
+    }
+    ordered(start, dir) {
         const result = new Set();
-        result.add(node);
+        result.add(start);
+        const dirf = direction(dir);
+        const oppositeDirF = direction(opposite(dir));
         for (const n of result)
-            this.nodes.get(n)?.from.forEach(n => result.add(n));
-        const order = memoize((n) => this.order(n));
-        return [...result].sort((l, r) => order(r) - order(l));
+            dirf(checkNotUndefined(this.nodes.get(n)))
+                .forEach(n => result.add(n));
+        const order = memoize((n) => this.order(n, oppositeDirF));
+        return [...result].map(node => ({ node, order: order(node) }));
     }
-    orderedAll(f = l => l.to) {
-        const order = memoize((n) => this.order(n, f));
-        return [...this.nodes.keys()].sort((l, r) => order(r) - order(l));
+    orderedAll(dir = 'to') {
+        return this.orderedOnly(true_(), dir);
     }
-    orderedOnly(pred, f = l => l.to) {
-        const order = memoize((n) => this.order(n, f));
+    orderedOnly(pred, dir = 'to') {
+        const dirF = direction(dir);
+        const order = memoize((n) => this.order(n, dirF));
         return [...this.nodes.keys().filter(pred)].sort((l, r) => order(r) - order(l));
     }
     findCycle() {

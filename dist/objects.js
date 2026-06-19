@@ -105,8 +105,13 @@ export async function asyncFlatMapOptional(src, mapper) {
 export function strcmpci(str1, str2) {
     return str1.toLowerCase() === str2.toLowerCase();
 }
-export function checkNotNull(value, message) {
+export function checkNotNull(value, message = '') {
     if (value === null)
+        throw new Error(message);
+    return value;
+}
+export function checkNotUndefined(value, message = '') {
+    if (value === undefined)
         throw new Error(message);
     return value;
 }

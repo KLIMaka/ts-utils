@@ -94,9 +94,6 @@ export async function asyncOptional(src) {
         return Optional.empty();
     return Optional.of(await src.get());
 }
-export function zipOptional(l, r) {
-    return l.flatMap(l => r.map(r => [l, r]));
-}
 export async function asyncFlatMapOptional(src, mapper) {
     if (!src.isPresent())
         return Optional.empty();

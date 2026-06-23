@@ -1,7 +1,6 @@
 import { match } from 'ts-pattern';
 import { chain, getOrCreate, map, slidingPairs, reduce } from './collections';
 import { iter } from './iter';
-import { memoize } from './mathutils';
 import { checkNotUndefined, field } from './objects';
 import { true_ } from './types';
 export function direction(dir) {
@@ -38,14 +37,20 @@ export class DirectionalGraph {
     orderNamed(start, dir = 'to') {
         return this.order(start, direction(dir));
     }
-    order(start, dir = direction('to')) {
+    order(start, dir = direction('to'), cache = new Map()) {
         const links = this.nodes.get(start);
-        if (links === undefined)
+        if (links === undefined) {
+            cache.set(start, 0);
             return 0;
+        }
         const flinks = dir(links);
-        if (flinks.size === 0)
+        if (flinks.size === 0) {
+            cache.set(start, 0);
             return 0;
-        return reduce(map(flinks, n => this.order(n, dir)), Math.max, 0) + 1;
+        }
+        const order = reduce(map(flinks, n => getOrCreate(cache, n, _ => this.order(n, dir, cache))), Math.max, 0) + 1;
+        cache.set(start, order);
+        return order;
     }
     orderedTo(node) {
         return this.ordered(node, 'from')
@@ -60,15 +65,16 @@ export class DirectionalGraph {
         for (const n of result)
             dirf(checkNotUndefined(this.nodes.get(n)))
                 .forEach(n => result.add(n));
-        const order = memoize((n) => this.order(n, oppositeDirF));
-        return [...result].map(node => ({ node, order: order(node) }));
+        const cache = new Map();
+        return [...result].map(node => ({ node, order: this.order(node, oppositeDirF, cache) }));
     }
     orderedAll(dir = 'to') {
         return this.orderedOnly(true_(), dir);
     }
     orderedOnly(pred, dir = 'to') {
         const dirF = direction(dir);
-        const order = memoize((n) => this.order(n, dirF));
+        const cache = new Map();
+        const order = (n) => this.order(n, dirF, cache);
         return [...this.nodes.keys().filter(pred)].sort((l, r) => order(r) - order(l));
     }
     findCycle() {

@@ -1,6 +1,7 @@
 import { printTime } from "./time";
 import { Source, transformedBuilder, tuple, Value, value, ValuesContainer } from "./callbacks";
 import { BiFn, Consumer, Err, Fn, MultiFn, Ok, Result, second, Supplier } from "./types";
+import { Work } from "./work";
 
 export class TaskInerruptedError extends Error {
   constructor() { super('Task Interrupted') }

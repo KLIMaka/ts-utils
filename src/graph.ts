@@ -46,12 +46,20 @@ export class DirectionalGraph<T> {
     return this.order(start, direction(dir));
   }
 
-  order(start: T, dir = direction<T>('to')): number {
+  order(start: T, dir = direction<T>('to'), cache = new Map<T, number>()): number {
     const links = this.nodes.get(start);
-    if (links === undefined) return 0;
+    if (links === undefined) {
+      cache.set(start, 0);
+      return 0;
+    }
     const flinks = dir(links);
-    if (flinks.size === 0) return 0;
-    return reduce(map(flinks, n => this.order(n, dir)), Math.max, 0) + 1;
+    if (flinks.size === 0) {
+      cache.set(start, 0);
+      return 0;
+    }
+    const order = reduce(map(flinks, n => getOrCreate(cache, n, _ => this.order(n, dir, cache))), Math.max, 0) + 1;
+    cache.set(start, order);
+    return order;
   }
 
   orderedTo(node: T): T[] {
@@ -69,8 +77,8 @@ export class DirectionalGraph<T> {
     for (const n of result)
       dirf(checkNotUndefined(this.nodes.get(n)))
         .forEach(n => result.add(n));
-    const order = memoize((n: T) => this.order(n, oppositeDirF));
-    return [...result].map(node => ({ node, order: order(node) }));
+    const cache = new Map<T, number>();
+    return [...result].map(node => ({ node, order: this.order(node, oppositeDirF, cache) }));
   }
 
   orderedAll(dir: Direction = 'to') {
@@ -79,7 +87,8 @@ export class DirectionalGraph<T> {
 
   orderedOnly(pred: Pred<T>, dir: Direction = 'to') {
     const dirF = direction<T>(dir);
-    const order = memoize((n: T) => this.order(n, dirF));
+    const cache = new Map<T, number>();
+    const order = (n: T) => this.order(n, dirF, cache);
     return [...this.nodes.keys().filter(pred)].sort((l, r) => order(r) - order(l));
   }
 

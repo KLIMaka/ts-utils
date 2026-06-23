@@ -107,10 +107,6 @@ export async function asyncOptional<T>(src: Optional<Promise<T>>): Promise<Optio
   return Optional.of(await src.get());
 }
 
-export function zipOptional<T, U>(l: Optional<T>, r: Optional<U>): Optional<[T, U]> {
-  return l.flatMap(l => r.map(r => [l, r]));
-}
-
 export async function asyncFlatMapOptional<T, U>(src: Optional<T>, mapper: Fn<T, Promise<Optional<U>>>): Promise<Optional<U>> {
   if (!src.isPresent()) return Optional.empty();
   return await mapper(src.get());

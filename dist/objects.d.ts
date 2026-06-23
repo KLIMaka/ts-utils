@@ -42,7 +42,6 @@ type Optionalify<T> = {
 export declare function andOptional<T extends any[]>(...opts: Optionalify<T>): Optional<T>;
 export declare function asyncMapOptional<T, U>(src: Optional<T>, mapper: Fn<T, Promise<U>>): Promise<Optional<U>>;
 export declare function asyncOptional<T>(src: Optional<Promise<T>>): Promise<Optional<T>>;
-export declare function zipOptional<T, U>(l: Optional<T>, r: Optional<U>): Optional<[T, U]>;
 export declare function asyncFlatMapOptional<T, U>(src: Optional<T>, mapper: Fn<T, Promise<Optional<U>>>): Promise<Optional<U>>;
 export declare function strcmpci(str1: string, str2: string): boolean;
 export declare function checkNotNull<T>(value: T | null, message?: string): T;

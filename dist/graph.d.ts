@@ -16,7 +16,7 @@ export declare class DirectionalGraph<T> {
     addChain(chain: T[]): void;
     remove(n: T): void;
     orderNamed(start: T, dir?: Direction): number;
-    order(start: T, dir?: Fn<Links<T>, Set<T>>): number;
+    order(start: T, dir?: Fn<Links<T>, Set<T>>, cache?: Map<T, number>): number;
     orderedTo(node: T): T[];
     ordered(start: T, dir: Direction): {
         node: T;

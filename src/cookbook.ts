@@ -8,7 +8,7 @@ export type Recepie<Input extends any[], Output> = (...input: Input) => Promise<
 type Recepify<T> = { [P in keyof T]: Recepie<any, T[P]> }
 type Arr<T> = T extends any[] ? T : never;
 
-export function cookbook<Output>(factory: Fn<Cookbook<[]>, Task<Output, []>>): Task<Output, []> {
+export function cookbook<Output>(factory: Fn<Cookbook<[]>, Task<Output, []>>): Task<Output, any> {
   const book = new Cookbook<[]>({} as any as Recepie<any, any>);
   const final = factory(book);
   return book.cook(final);

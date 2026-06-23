@@ -5,7 +5,7 @@ type Recepify<T> = {
     [P in keyof T]: Recepie<any, T[P]>;
 };
 type Arr<T> = T extends any[] ? T : never;
-export declare function cookbook<Output>(factory: Fn<Cookbook<[]>, Task<Output, []>>): Task<Output, []>;
+export declare function cookbook<Output>(factory: Fn<Cookbook<[]>, Task<Output, []>>): Task<Output, any>;
 export declare function cookbookInput<Input extends any[], Output>(token: Input, factory: BiFn<Cookbook<Input>, Task<Input, any>, Task<Output, any>>): Task<Output, Arr<Input>>;
 export declare class Cookbook<GlobalInput> {
     private input;

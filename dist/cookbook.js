@@ -2,43 +2,37 @@ import { DirectionalGraph } from "./graph";
 import { iter } from "./iter";
 import { checkNotUndefined, field } from "./objects";
 import { second } from "./types";
-export function cookbook() {
+export function cookbook(factory) {
+    const book = new Cookbook({});
+    const final = factory(book);
+    return book.cook(final);
+}
+export function cookbookInput(token, factory) {
     const input = {};
     const book = new Cookbook(input);
-    return { input, book };
-}
-export function cookbookWork(token, factory) {
-    const { book, input } = cookbook();
     const final = factory(book, input);
-    return book.extract(final);
+    return book.cook(final);
 }
 function wrapRecepie(label, recepie) {
     return async (handle, ...args) => await handle.waitFor(recepie(...args), label);
 }
 export class Cookbook {
     input;
-    recepiesGraph = new DirectionalGraph();
+    tasksGraph = new DirectionalGraph();
     args = new Map();
     constructor(input) {
         this.input = input;
-        this.recepiesGraph.addNode(this.input);
+        this.tasksGraph.addNode(this.input);
     }
     recepie(label, args, recepie) {
         const wrapped = wrapRecepie(label, recepie);
         return this.paste(args, wrapped);
     }
-    paste(args, work) {
-        this.recepiesGraph.addNode(work);
-        args.forEach(a => this.recepiesGraph.add(a, work));
-        this.args.set(work, args);
-        return work;
-    }
-    chapter(args, factory) {
-        const { book, input } = cookbook();
-        return this.paste(args, async (handle, ...args) => {
-            const work = factory(book, input, ...args);
-            return book.cook(work, args)(handle);
-        });
+    paste(args, task) {
+        this.tasksGraph.addNode(task);
+        args.forEach(a => this.tasksGraph.add(a, task));
+        this.args.set(task, args);
+        return task;
     }
     async cookRecepie(handle, values, recepie) {
         const args = checkNotUndefined(this.args.get(recepie)).map(a => values.get(a));
@@ -46,7 +40,7 @@ export class Cookbook {
         values.set(recepie, result);
     }
     extractGroups(recepie) {
-        return iter(this.recepiesGraph.ordered(recepie, 'from'))
+        return iter(this.tasksGraph.ordered(recepie, 'from'))
             .groupEntries(field('order'), field('node'))
             .collect()
             .toSorted((l, r) => r[0] - l[0])
@@ -61,13 +55,7 @@ export class Cookbook {
         }
         return values.get(recepie);
     }
-    cook(recepie, input) {
-        const groups = this.extractGroups(recepie);
-        const values = new Map();
-        values.set(this.input, input);
-        return async (handle) => this.runGroups(handle, groups, values, recepie);
-    }
-    extract(recepie) {
+    cook(recepie) {
         const topoord = this.extractGroups(recepie);
         const values = new Map();
         return async (handle, ...args) => {

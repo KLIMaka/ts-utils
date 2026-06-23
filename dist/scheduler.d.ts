@@ -38,7 +38,8 @@ export interface TaskController<T> extends ProgressInfo {
     stop(): Promise<void>;
     end(): Promise<Result<T>>;
 }
-export type Task<T> = (handle: TaskHandle) => Promise<T>;
+export type Task<T, Args extends any[] = []> = (handle: TaskHandle, ...args: Args) => Promise<T>;
+export declare function bind<Input extends any[], Output>(task: Task<Output, Input>, ...args: Input): Task<Output>;
 export interface Scheduler {
     exec<T>(task: Task<T>, name?: string): TaskController<T>;
     tasks: Source<TaskController<any>[]>;

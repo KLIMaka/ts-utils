@@ -38,7 +38,6 @@
     "./injector": "./dist/injector.js",
     "./callbacks": "./dist/callbacks.js",
     "./scheduler": "./dist/scheduler.js",
-    "./work": "./dist/work.js",
     "./cookbook": "./dist/cookbook.js"
   },
   "typesVersions": {
@@ -135,9 +134,6 @@
       ],
       "scheduler": [
         "./dist/scheduler.d.ts"
-      ],
-      "work": [
-        "./dist/work.d.ts"
       ],
       "cookbook": [
         "./dist/cookbook.d.ts"

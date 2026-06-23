@@ -28,6 +28,9 @@ export function progress(info) {
 export function done(result) {
     return { isDone: () => true, progress: () => { throw new Error(); }, result: () => result, on: (onDone, _) => onDone(result) };
 }
+export function bind(task, ...args) {
+    return handle => task(handle, ...args);
+}
 const RESOLVED = Promise.resolve();
 class Barrier {
     blocked;

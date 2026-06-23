@@ -1,7 +1,5 @@
-import { printTime } from "./time";
-import { Source, transformedBuilder, tuple, Value, value, ValuesContainer } from "./callbacks";
-import { BiFn, Consumer, Err, Fn, MultiFn, Ok, Result, second, Supplier } from "./types";
-import { Work } from "./work";
+import { Source, Value, value, ValuesContainer } from "./callbacks";
+import { Consumer, Err, Fn, MultiFn, Ok, Result, second, Supplier } from "./types";
 
 export class TaskInerruptedError extends Error {
   constructor() { super('Task Interrupted') }
@@ -74,7 +72,13 @@ export interface TaskController<T> extends ProgressInfo {
   end(): Promise<Result<T>>;
 }
 
-export type Task<T> = (handle: TaskHandle) => Promise<T>;
+export type Task<T, Args extends any[] = []> = (handle: TaskHandle, ...args: Args) => Promise<T>;
+
+export function bind<Input extends any[], Output>(task: Task<Output, Input>, ...args: Input): Task<Output> {
+  return handle => task(handle, ...args);
+}
+
+
 export interface Scheduler {
   exec<T>(task: Task<T>, name?: string): TaskController<T>;
   tasks: Source<TaskController<any>[]>;

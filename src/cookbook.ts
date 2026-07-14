@@ -14,6 +14,10 @@ export function cookbook<Output>(factory: Fn<Cookbook<[]>, Task<Output, any>>): 
   return book.cook(final);
 }
 
+export function cookbookImmediate<Output>(handle: TaskHandle, factory: Fn<Cookbook<[]>, Task<Output, any>>): Promise<Output> {
+  return cookbook(factory)(handle);
+}
+
 export function cookbookInput<Input extends any[], Output>(token: Input, factory: BiFn<Cookbook<Input>, Task<Input, any>, Task<Output, any>>): Task<Output, Arr<Input>> {
   const input = {} as any as Recepie<[], Input>;
   const book = new Cookbook<Input>(input);
@@ -35,16 +39,20 @@ export class Cookbook<GlobalInput> {
     this.tasksGraph.addNode(this.input);
   }
 
-  recepie<Input extends any[], Output>(label: string, args: Recepify<Input>, recepie: MultiFn<Input, Promise<Output>>): Task<Output, Input> {
-    const wrapped = wrapRecepie(label, recepie);
-    return this.paste(args, wrapped);
-  }
-
   paste<Input extends any[], Output>(args: Recepify<Input>, task: Task<Output, Input>): Task<Output, Input> {
     this.tasksGraph.addNode(task);
     args.forEach(a => this.tasksGraph.add(a, task));
     this.args.set(task, args);
     return task;
+  }
+
+  recepie<Input extends any[], Output>(label: string, args: Recepify<Input>, recepie: MultiFn<Input, Promise<Output>>): Task<Output, Input> {
+    const wrapped = wrapRecepie(label, recepie);
+    return this.paste(args, wrapped);
+  }
+
+  recepieTask<Input extends any[], Output>(args: Recepify<Input>, task: MultiFn<Input, Task<Output>>): Task<Output, Input> {
+    return this.paste(args, (handle, ...args) => task(...args)(handle))
   }
 
   private async cookRecepie(handle: TaskHandle, values: Map<Recepie<any, any>, any>, recepie: Recepie<any, any>): Promise<void> {

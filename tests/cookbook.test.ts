@@ -1,5 +1,5 @@
 import { ValuesContainer } from "../src/callbacks";
-import { cookbookInput } from "../src/cookbook";
+import { cookbook, cookbookImmediate, cookbookInput } from "../src/cookbook";
 import { bind, DefaultScheduler } from "../src/scheduler";
 import { Consumer, typeToken } from "../src/types";
 
@@ -28,5 +28,20 @@ test('basic', async () => {
   await NEXTLOOP();
 
   expect((await taskHandle.end()).unwrap()).toBe(20);
+});
+
+test('advanced', async () => {
+  const task = cookbook(book => {
+    const input = book.recepie('', [], async () => 42);
+    return book.recepieTask([input], input => cookbook(book => {
+      const t = book.recepie('', [], async () => 12 + input);
+      const u = book.recepie('', [], async () => 42 * input);
+      return book.recepie('', [t, u], async (t, u) => t + u)
+    }))
+  })
+
+  const taskHandle = SCHEDULER.exec(task);
+  await NEXTLOOP();
+  expect((await taskHandle.end()).unwrap()).toBe(12 + 42 + 42 * 42);
 });
 

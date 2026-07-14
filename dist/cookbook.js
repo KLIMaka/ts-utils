@@ -7,6 +7,9 @@ export function cookbook(factory) {
     const final = factory(book);
     return book.cook(final);
 }
+export function cookbookImmediate(handle, factory) {
+    return cookbook(factory)(handle);
+}
 export function cookbookInput(token, factory) {
     const input = {};
     const book = new Cookbook(input);
@@ -24,15 +27,18 @@ export class Cookbook {
         this.input = input;
         this.tasksGraph.addNode(this.input);
     }
-    recepie(label, args, recepie) {
-        const wrapped = wrapRecepie(label, recepie);
-        return this.paste(args, wrapped);
-    }
     paste(args, task) {
         this.tasksGraph.addNode(task);
         args.forEach(a => this.tasksGraph.add(a, task));
         this.args.set(task, args);
         return task;
+    }
+    recepie(label, args, recepie) {
+        const wrapped = wrapRecepie(label, recepie);
+        return this.paste(args, wrapped);
+    }
+    recepieTask(args, task) {
+        return this.paste(args, (handle, ...args) => task(...args)(handle));
     }
     async cookRecepie(handle, values, recepie) {
         const args = checkNotUndefined(this.args.get(recepie)).map(a => values.get(a));

@@ -18,6 +18,11 @@ export function createCanvas<P>(raster: Raster<P>, rasterizer: Rasterizer<P>): H
   return canvas;
 }
 
+export async function createPngBlob<P>(raster: Raster<P>, rasterizer: Rasterizer<P>): Promise<Blob> {
+  return new Promise<Blob>((ok, error) =>
+    createCanvas(raster, rasterizer).toBlob(async blob => { if (blob) ok(blob); else error(new Error('Invalid image')) }, 'image/png'));
+}
+
 export function drawToCanvas<P>(raster: Raster<P>, ctx: CanvasRenderingContext2D, rasterizer: Rasterizer<P>, x: number = 0, y: number = 0) {
   const data = new Uint8ClampedArray(raster.width * raster.height * 4);
   const id = new ImageData(data, raster.width, raster.height);

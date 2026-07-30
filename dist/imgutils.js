@@ -14,6 +14,12 @@ export function createCanvas(raster, rasterizer) {
     drawToCanvas(raster, checkNotNull(canvas.getContext('2d'), ''), rasterizer, 0, 0);
     return canvas;
 }
+export async function createPngBlob(raster, rasterizer) {
+    return new Promise((ok, error) => createCanvas(raster, rasterizer).toBlob(async (blob) => { if (blob)
+        ok(blob);
+    else
+        error(new Error('Invalid image')); }, 'image/png'));
+}
 export function drawToCanvas(raster, ctx, rasterizer, x = 0, y = 0) {
     const data = new Uint8ClampedArray(raster.width * raster.height * 4);
     const id = new ImageData(data, raster.width, raster.height);

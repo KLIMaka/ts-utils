@@ -102,4 +102,5 @@ export declare function notNull<T>(value: T | null): T;
 export declare function notUndefined<T>(value: T | undefined): T;
 export declare function notNullOrUndefined<T>(value: T | null | undefined): T;
 export declare function typeToken<T>(): T;
+export declare function spread<Args extends any[], Res>(f: MultiFn<Args, Res>): Fn<Args, Res>;
 //# sourceMappingURL=types.d.ts.map

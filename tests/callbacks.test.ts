@@ -1,7 +1,8 @@
 import { enableMapSet } from "immer";
 import { objectEq, transformed, value, ValuesContainer } from "../src/callbacks";
 import Optional from "optional-js";
-import { nil } from "../src/types";
+import { nil, spread } from "../src/types";
+import { sum } from "../src/mathutils";
 
 test('value', () => {
   const a = value('a', 1);
@@ -292,13 +293,13 @@ test('marked for delete', async () => {
 
   const a = c.value('a', 42);
   const b = c.value('b', 12);
-  const apb = c1.transformedTuple('a+b', [a, b], ([a, b]) => a + b);
+  const apb = c1.transformedTuple('a+b', [a, b], spread(sum));
   const d = c.value('d', 22);
   c1.handleStandalone([apb, d], nil());
 
   const c1DisposePromise = c1.dispose();
 
-  const e = c.transformedTuple('e', [a, b], ([a, b]) => a + b);
+  const e = c.transformedTuple('e', [a, b], spread(sum));
   c.handleStandalone([e], nil());
 
   await c1DisposePromise;

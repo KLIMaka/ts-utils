@@ -125,4 +125,7 @@ export function notNullOrUndefined(value) {
     return value;
 }
 export function typeToken() { return undefined; }
+export function spread(f) {
+    return args => f(...args);
+}
 //# sourceMappingURL=types.js.map

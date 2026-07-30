@@ -184,3 +184,7 @@ export function notNullOrUndefined<T>(value: T | null | undefined): T {
 }
 
 export function typeToken<T>(): T { return undefined as T }
+
+export function spread<Args extends any[], Res>(f: MultiFn<Args, Res>): Fn<Args, Res> {
+  return args => f(...args);
+}

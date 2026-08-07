@@ -1,4 +1,4 @@
-import { Deck, IndexedDeck, Ring, all, cyclicPairs, cyclicRange, enumerate, findFirst, first, flatMap, flatten, groups, isEmpty, last, map, range, rect, reduce, reversed, slidingPairs, slidingWindow, sub, take, wrap, zip, zipTuple } from "../src/collections";
+import { Deck, IndexedDeck, Ring, all, cyclicPairs, cyclicRange, enumerate, findFirst, first, flatMap, flatten, groups, groupsExact, isEmpty, last, map, range, rect, reduce, reversed, slidingPairs, slidingWindow, sub, take, wrap, zip, zipTuple } from "../src/collections";
 import { FastList } from "../src/list";
 
 
@@ -136,7 +136,8 @@ test('Utils', () => {
   expect([...slidingPairs([1])]).toStrictEqual([]);
   expect([...slidingWindow([1, 2, 3, 4], 3)]).toStrictEqual([[1, 2, 3], [2, 3, 4]]);
   expect([...groups([1, 2, 3, 4], 2)]).toStrictEqual([[1, 2], [3, 4]]);
-  expect(() => [...groups([1, 2, 3, 4], 3)]).toThrow();
+  expect([...groups([1, 2, 3, 4], 3)]).toStrictEqual([[1, 2, 3], [4]]);
+  expect(() => [...groupsExact([1, 2, 3, 4], 3)]).toThrow();
   expect([...rect(1, 1)]).toStrictEqual([[0, 0]]);
   expect([...rect(2, 2)]).toStrictEqual([[0, 0], [1, 0], [0, 1], [1, 1]]);
   expect(() => [...rect(-2, 2)]).toThrow();

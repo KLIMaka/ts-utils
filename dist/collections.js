@@ -389,9 +389,14 @@ export function* groups(i, size) {
         const next = [...takeIterator(iter, size)];
         if (next.length === 0)
             return;
-        else if (next.length !== size)
-            throw Error();
         yield next;
+    }
+}
+export function* groupsExact(i, size) {
+    for (const group of groups(i, size)) {
+        if (group.length !== size)
+            throw new Error();
+        yield group;
     }
 }
 export function takeFirst(i) {

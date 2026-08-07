@@ -411,8 +411,14 @@ export function* groups<T>(i: Iterable<T>, size: number): Generator<T[]> {
   for (; ;) {
     const next = [...takeIterator(iter, size)];
     if (next.length === 0) return;
-    else if (next.length !== size) throw Error();
     yield next;
+  }
+}
+
+export function* groupsExact<T>(i: Iterable<T>, size: number): Generator<T[]> {
+  for (const group of groups(i, size)) {
+    if (group.length !== size) throw new Error();
+    yield group;
   }
 }
 

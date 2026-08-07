@@ -99,6 +99,7 @@ export declare function join<T>(i: Iterable<T>, delim: T): Generator<T>;
 export declare function take<T>(i: Iterable<T>, count: number): Generator<T>;
 export declare function takeIterator<T>(iter: Iterator<T>, count: number): Generator<T>;
 export declare function groups<T>(i: Iterable<T>, size: number): Generator<T[]>;
+export declare function groupsExact<T>(i: Iterable<T>, size: number): Generator<T[]>;
 export declare function takeFirst<T>(i: Iterable<T>): Optional<T>;
 export declare function toIterable<T>(iter: Iterator<T>): Iterable<T>;
 export declare function skip<T>(i: Iterable<T>, count: number): Iterable<T>;

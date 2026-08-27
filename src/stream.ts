@@ -185,6 +185,10 @@ export class Stream {
   eoi(): boolean {
     return this.off >= this.view.buff.byteLength;
   }
+
+  skip(off: number) {
+    this.off += off;
+  }
 }
 
 function toSigned(value: number, bits: number) {
@@ -243,7 +247,6 @@ export const array = <T>(type: Accessor<T>, len: number) =>
   accessor((view, off) => readArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
 export const atomic_array = <T>(type: AtomicReader<any, T>, len: number) =>
   accessor((view, off) => readAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
-export const struct = <T>(type?: Supplier<T>) => new StructBuilderFromType(type);
 export const builder = () => new StructBuilder();
 
 const readArray = <T>(v: View, off: number, type: Accessor<T>, len: number): Array<T> => {
@@ -293,34 +296,6 @@ const writeAtomicArray = <T>(v: View, off: number, type: AtomicReader<any, T>, l
 
 type Field<T, F extends keyof T = any> = [keyof T, Accessor<T[F]>];
 
-class StructBuilderFromType<T> implements Accessor<T> {
-  private fields: Field<T>[] = [];
-  public size = 0;
-  constructor(private ctr?: Supplier<T>) { }
-
-  field<V extends keyof T>(f: V, r: Accessor<T[V]>) {
-    this.fields.push([f, r]);
-    this.size += r.size;
-    return this;
-  }
-
-  read(v: View, off: number) {
-    const struct = this.ctr?.() ?? {} as T;
-    this.fields.forEach(([name, accessor]) => {
-      struct[name] = accessor.read(v, off);
-      off += accessor.size;
-    });
-    return struct;
-  }
-
-  write(v: View, off: number, value: T) {
-    this.fields.forEach(([name, accessor]) => {
-      accessor.write(v, off, value[name]);
-      off += accessor.size;
-    });
-  }
-}
-
 class StructBuilder<T extends object> {
   constructor(
     private fields: [Field<any>, number][] = [],
@@ -333,6 +308,8 @@ class StructBuilder<T extends object> {
   }
 
   build(): Accessor<T> {
+    const size = this.fields.map(([[_, r]]) => r.size).reduce(sum);
+    if (size === 0 || toInt(size) !== size) throw new Error(`Invalid type size: ${size}`);
     const fieldsMap = iter(this.fields).toMap(([[name]]) => name, ([[_, acc], off]) => pair(acc, off));
     const read = (v: View, off: number) => {
       const struct = {} as T;
@@ -358,7 +335,6 @@ class StructBuilder<T extends object> {
       });
     }
     const write = (v: View, off: number, value: T) => this.fields.forEach(([[name, accessor], fieldOff]) => accessor.write(v, off + fieldOff, value[name as keyof T]));
-    const size = this.fields.map(([[_, r]]) => r.size).reduce(sum);
     return { read, write, size };
   }
 }

@@ -1,14 +1,15 @@
-import { Stream, byte, atomic_array, struct, bits, Accessor, ubyte, short, ushort, int, uint, float, string, array, bits_signed, builder, AccessorType, transformed, bit, View } from '../src/stream';
+import { Accessor, AccessorType, array, atomic_array, bit, bits, bits_signed, builder, byte, float, int, short, Stream, string, transformed, ubyte, uint, ushort, View } from '../src/stream';
 
 type Test = {
   a: number;
   b: number;
   c: number;
 }
-const testStruct = struct<Test>()
+const testStruct = builder()
   .field('a', byte)
   .field('b', bits(4))
-  .field('c', bits_signed(4));
+  .field('c', bits_signed(4))
+  .build();
 
 function check<T>(stream: Stream, accessor: Accessor<T>, value: T): void {
   stream.setOffset(0);
@@ -38,12 +39,12 @@ test('write', () => {
   const t: Test = { a: 12, b: 4, c: -4 };
   stream.write(atomic_array(byte, 2), new Int8Array([12, 0b11000100]));
   stream.setOffset(0);
-  expect(stream.read(testStruct)).toStrictEqual(t);
+  expect(stream.read(testStruct)).toMatchObject(t);
 
   stream.setOffset(0);
   stream.write(testStruct, t);
   stream.setOffset(0);
-  expect(stream.read(testStruct)).toStrictEqual(t);
+  expect(stream.read(testStruct)).toMatchObject(t);
 })
 
 test('struct-builder', () => {

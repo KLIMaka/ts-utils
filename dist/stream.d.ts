@@ -1,4 +1,4 @@
-import { Fn, Supplier } from "./types";
+import { Fn } from "./types";
 export declare class View {
     readonly buff: ArrayBuffer;
     private LE;
@@ -36,6 +36,7 @@ export declare class Stream {
     write<T>(acc: Accessor<T>, value: T): void;
     setOffset(off: number): void;
     eoi(): boolean;
+    skip(off: number): void;
 }
 type ScalarReader<T> = (v: View, off: number) => T;
 type ScalarWriter<T> = (v: View, off: number, value: T) => void;
@@ -98,18 +99,8 @@ export declare const atomic_array: <T>(type: AtomicReader<any, T>, len: number) 
     write: ScalarWriter<T>;
     size: number;
 }>;
-export declare const struct: <T>(type?: Supplier<T>) => StructBuilderFromType<T>;
 export declare const builder: () => StructBuilder<object>;
 type Field<T, F extends keyof T = any> = [keyof T, Accessor<T[F]>];
-declare class StructBuilderFromType<T> implements Accessor<T> {
-    private ctr?;
-    private fields;
-    size: number;
-    constructor(ctr?: Supplier<T> | undefined);
-    field<V extends keyof T>(f: V, r: Accessor<T[V]>): this;
-    read(v: View, off: number): T;
-    write(v: View, off: number, value: T): void;
-}
 declare class StructBuilder<T extends object> {
     private fields;
     private off;

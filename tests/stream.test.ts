@@ -152,3 +152,15 @@ test('view', () => {
     { a: -11, b: true, c: 'foo', rest: 99, arr: [{ name: "", id: 0 }, { name: 'az', id: 12 }] },
     { a: 42, b: false, c: 'bar', rest: 127, arr: [{ name: "", id: 0 }, { name: "", id: 0 }] }]);
 })
+
+test('clone', () => {
+  const view = new View(new ArrayBuffer(32));
+
+  const tt = { a: 1, b: 2, c: 3, x: 42 };
+  testStruct.write(view, 0, tt);
+
+  const copy = testStruct.read(view, 0) as AccessorType<typeof testStruct> & { x: number };
+  copy.x = 12;
+
+  expect(copy.x).toBe(12);
+})

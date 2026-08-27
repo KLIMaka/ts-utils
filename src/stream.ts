@@ -321,7 +321,7 @@ class StructBuilder<T extends object> {
             const [acc, fieldOff] = field;
             return acc.read(v, off + fieldOff);
           }
-          Reflect.get(target, prop, receiver);
+          return Reflect.get(target, prop, receiver);
         },
         set: (target, prop, newValue, receiver): boolean => {
           const field = fieldsMap.get(prop);

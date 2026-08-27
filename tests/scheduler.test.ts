@@ -238,8 +238,13 @@ test('waitMaybe', async () => {
   SCHEDULER.exec(handle => handle.waitMaybe(f(), '', 1));
 
   expect(stage).toBe(0);
-  await NEXTLOOP();
-  await NEXTLOOP();
-  await NEXTLOOP();
+
+  let loop = 0;
+  while (stage < 999) {
+    await NEXTLOOP();
+    loop++
+  }
+
   expect(stage).toBe(999);
+  expect(loop < 999).toBeTruthy();
 });

@@ -1,10 +1,9 @@
-export declare class Rect {
+export type Rect = {
     w: number;
     h: number;
     xoff: number;
     yoff: number;
-    constructor(w: number, h: number, xoff?: number, yoff?: number);
-}
+};
 export declare class Packer {
     private width;
     private height;

@@ -1,18 +1,6 @@
 // Inspired by https://blackpawn.com/texts/lightmaps/default.html by blackpawn 
 
-export class Rect {
-  public w: number;
-  public h: number;
-  public xoff: number;
-  public yoff: number;
-
-  constructor(w: number, h: number, xoff: number = 0, yoff: number = 0) {
-    this.w = w;
-    this.h = h;
-    this.xoff = xoff;
-    this.yoff = yoff;
-  }
-}
+export type Rect = { w: number, h: number, xoff: number, yoff: number }
 
 export class Packer {
   private p1: Packer | undefined;
@@ -27,7 +15,7 @@ export class Packer {
     private xoff = 0,
     private yoff = 0) { }
 
-  public pack(w: number, h: number): Rect | undefined {
+  pack(w: number, h: number): Rect | undefined {
     if (this.sized) {
       return this.p1?.pack(w, h) ?? this.p2?.pack(w, h);
     } else {

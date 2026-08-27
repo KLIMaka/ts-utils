@@ -1,206 +1,189 @@
-import { sum } from "./mathutils";
-import { Supplier, Fn } from "./types";
+import { iter } from "./iter";
+import { sum, int as toInt } from "./mathutils";
+import { first, Fn, pair, Supplier } from "./types";
 
-export class Stream {
+const DECODER = new TextDecoder();
+const ENCODER = new TextEncoder();
+
+export class View {
+  private arr: Uint8Array;
   private view: DataView<ArrayBuffer>;
-  private offset: number;
-  private littleEndian: boolean;
-  private aligned = true;
-  private currentBit = 0;
-  private currentByte = 0;
-  private utfDecoder = new TextDecoder('latin1');
-  private utfEncoder = new TextEncoder();
 
-  constructor(buf: ArrayBuffer, isLE = true) {
-    this.view = new DataView(buf);
-    this.offset = 0;
-    this.littleEndian = isLE;
+  constructor(
+    readonly buff: ArrayBuffer,
+    private LE = true,
+  ) {
+    this.arr = new Uint8Array(buff);
+    this.view = new DataView(buff);
   }
 
-  private checkBitAlignment() {
-    if (!this.aligned)
-      throw new Error(`Unaligned offset: ${this.offset}:${this.currentBit}`);
+  private getOff(off: number, check = true): [number, number] {
+    const byte = toInt(off);
+    const bit = toInt((off - byte) * 8);
+    if (check && bit !== 0)
+      throw new Error(`Unaligned offset: ${byte}:${bit}`);
+    return [byte, bit];
   }
 
-  buffer(): ArrayBuffer {
-    return this.view.buffer;
+  readByte(off: number): number {
+    const [byteOff] = this.getOff(off);
+    return this.view.getInt8(byteOff);
   }
 
-  eoi(): boolean {
-    return this.offset >= this.view.byteLength;
+  writeByte(off: number, byte: number): void {
+    const [byteOff] = this.getOff(off);
+    this.view.setInt8(byteOff, byte);
   }
 
-  skip(n: number) {
-    this.checkBitAlignment();
-    this.offset += n;
+  readUByte(off: number): number {
+    const [byteOff] = this.getOff(off);
+    return this.view.getUint8(byteOff);
   }
 
-  setOffset(off: number): void {
-    this.checkBitAlignment();
-    this.offset = off;
+  writeUByte(off: number, byte: number): void {
+    const [byteOff] = this.getOff(off);
+    this.view.setUint8(byteOff, byte);
   }
 
-  mark(): number {
-    this.checkBitAlignment();
-    return this.offset;
+  readShort(off: number): number {
+    const [byteOff] = this.getOff(off);
+    return this.view.getInt16(byteOff, this.LE);
   }
 
-  readByte(): number {
-    this.checkBitAlignment();
-    return this.view.getInt8(this.offset++);
+  writeShort(off: number, short: number): void {
+    const [byteOff] = this.getOff(off);
+    this.view.setInt16(byteOff, short, this.LE);
   }
 
-  writeByte(byte: number): void {
-    this.checkBitAlignment();
-    this.view.setInt8(this.offset++, byte);
+  readUShort(off: number): number {
+    const [byteOff] = this.getOff(off);
+    return this.view.getUint16(byteOff, this.LE);
   }
 
-  readUByte(): number {
-    this.checkBitAlignment();
-    return this.view.getUint8(this.offset++);
+  writeUShort(off: number, short: number): void {
+    const [byteOff] = this.getOff(off);
+    this.view.setUint16(byteOff, short, this.LE);
   }
 
-  writeUByte(byte: number): void {
-    this.checkBitAlignment();
-    this.view.setUint8(this.offset++, byte);
+  readInt(off: number): number {
+    const [byteOff] = this.getOff(off);
+    return this.view.getInt32(byteOff, this.LE);
   }
 
-  readShort(): number {
-    this.checkBitAlignment();
-    const ret = this.view.getInt16(this.offset, this.littleEndian);
-    this.offset += 2;
-    return ret;
+  writeInt(off: number, int: number): void {
+    const [byteOff] = this.getOff(off);
+    this.view.setInt32(byteOff, int, this.LE);
   }
 
-  writeShort(short: number): void {
-    this.checkBitAlignment();
-    this.view.setInt16(this.offset, short, this.littleEndian);
-    this.offset += 2;
+  readUInt(off: number): number {
+    const [byteOff] = this.getOff(off);
+    return this.view.getUint32(byteOff, this.LE);
   }
 
-  readUShort(): number {
-    this.checkBitAlignment();
-    const ret = this.view.getUint16(this.offset, this.littleEndian);
-    this.offset += 2;
-    return ret;
+  writeUInt(off: number, int: number): void {
+    const [byteOff] = this.getOff(off);
+    this.view.setUint32(byteOff, int, this.LE);
   }
 
-  writeUShort(short: number): void {
-    this.checkBitAlignment();
-    this.view.setUint16(this.offset, short, this.littleEndian);
-    this.offset += 2;
+  readFloat(off: number): number {
+    const [byteOff] = this.getOff(off);
+    return this.view.getFloat32(byteOff, this.LE);
   }
 
-  readInt(): number {
-    this.checkBitAlignment();
-    const ret = this.view.getInt32(this.offset, this.littleEndian);
-    this.offset += 4;
-    return ret;
+  writeFloat(off: number, float: number): void {
+    const [byteOff] = this.getOff(off);
+    this.view.setFloat32(byteOff, float, this.LE);
   }
 
-  writeInt(int: number): void {
-    this.checkBitAlignment();
-    this.view.setInt32(this.offset, int, this.littleEndian);
-    this.offset += 4;
+  readArrayBuffer(off: number, bytes: number): ArrayBuffer {
+    const [byteOff] = this.getOff(off);
+    return this.view.buffer.slice(byteOff, off + bytes);
   }
 
-  readUInt(): number {
-    this.checkBitAlignment();
-    const ret = this.view.getUint32(this.offset, this.littleEndian);
-    this.offset += 4;
-    return ret;
+  writeArrayBuffer(off: number, buffer: ArrayBuffer, bytes = buffer.byteLength): void {
+    const [byteOff] = this.getOff(off);
+    this.arr.set(new Uint8Array(buffer, 0, bytes), byteOff)
   }
 
-  writeUInt(int: number): void {
-    this.checkBitAlignment();
-    this.view.setUint32(this.offset, int, this.littleEndian);
-    this.offset += 4;
-  }
-
-  readFloat(): number {
-    this.checkBitAlignment();
-    const ret = this.view.getFloat32(this.offset, this.littleEndian);
-    this.offset += 4;
-    return ret;
-  }
-
-  writeFloat(float: number): void {
-    this.checkBitAlignment();
-    this.view.setFloat32(this.offset, float, this.littleEndian);
-    this.offset += 4;
-  }
-
-  readByteString(len: number): string {
-    this.checkBitAlignment();
-    const str = this.utfDecoder.decode(this.readArrayBuffer(len));
+  readByteString(off: number, len: number): string {
+    const [byteOff] = this.getOff(off);
+    const str = DECODER.decode(this.readArrayBuffer(byteOff, len));
     const zero = str.indexOf('\0');
     return zero === -1 ? str : str.substring(0, zero);
   }
 
-  writeByteString(len: number, str: string): void {
-    this.checkBitAlignment();
+  writeByteString(off: number, len: number, str: string): void {
+    const [byteOff] = this.getOff(off);
     const buff = new Uint8Array(len);
-    buff.set(this.utfEncoder.encode(str).subarray(0, len));
-    this.writeArrayBuffer(buff.buffer, len);
+    buff.set(ENCODER.encode(str).subarray(0, len));
+    this.writeArrayBuffer(byteOff, buff.buffer);
   }
 
-  subView(): Stream {
-    this.checkBitAlignment();
-    const ret = new Stream(this.view.buffer, this.littleEndian);
-    ret.setOffset(this.offset);
-    return ret;
-  }
-
-  readArrayBuffer(bytes: number): ArrayBuffer {
-    this.checkBitAlignment();
-    const slice = this.view.buffer.slice(this.offset, this.offset + bytes);
-    this.offset += bytes;
-    return slice;
-  }
-
-  writeArrayBuffer(buffer: ArrayBuffer, len: number): void {
-    const dst = new Uint8Array(this.view.buffer, this.offset);
-    dst.set(new Uint8Array(buffer, 0, len));
-    this.offset += len;
-  }
-
-  readBit(): number {
-    if (this.aligned) this.currentByte = this.readUByte();
-    const bit = ((this.currentByte >> (this.currentBit)) & 1);
-    this.currentBit = (this.currentBit + 1) % 8;
-    this.aligned = this.currentBit === 0;
-    return bit;
-  }
-
-  writeBit(bit: boolean): void {
-    if (this.aligned) this.currentByte = 0;
-    if (bit) this.currentByte |= (1 << this.currentBit)
-    else this.currentByte &= (~(1 << this.currentBit) & 0xff);
-    this.currentBit = (this.currentBit + 1) % 8;
-    this.aligned = this.currentBit === 0;
-    if (this.aligned) this.writeUByte(this.currentByte);
-  }
-
-  readBitsSigned(bits: number): number {
-    return this.readBits(-bits);
-  }
-
-  readBits(bits: number): number {
+  readBits(off: number, bits: number): number {
     let value = 0;
-    const signed = bits < 0;
-    bits = signed ? -bits : bits;
+    let [byteOff, bitOff] = this.getOff(off, false);
+    let word = this.view.getUint8(byteOff);
     for (let i = 0; i < bits; i++) {
-      let b = this.readBit();
-      value = value | (b << i);
+      const bit = ((word >> bitOff) & 1);
+      value |= bit << i;
+      if (bitOff === 7) {
+        byteOff++;
+        word = this.view.getUint8(byteOff);
+        bitOff = 0;
+      } else {
+        bitOff++;
+      }
     }
-    return signed ? toSigned(value, bits) : value;
+    return value;
   }
 
-  writeBits(bits: number, value: number): void {
-    const signed = bits < 0;
-    bits = signed ? -bits : bits;
-    value = signed ? fromSigned(value, bits) : value;
-    for (let i = 0; i < bits; i++)  this.writeBit(((value >> i) & 1) === 1);
+  writeBits(off: number, bits: number, value: number): void {
+    let [byteOff, bitOff] = this.getOff(off, false);
+    let word = this.view.getUint8(byteOff);
+    for (let i = 0; i < bits; i++) {
+      const bit = ((value >> i) & 1) === 1;
+      if (bit) word |= (1 << bitOff)
+      else word &= (~(1 << bitOff) & 0xffffffff);
+
+      if (bitOff === 7) {
+        this.view.setUint8(byteOff, word);
+        byteOff++;
+        word = this.view.getUint8(byteOff);
+        bitOff = 0;
+      } else {
+        bitOff++;
+      }
+    }
+    this.view.setUint8(byteOff, word);
+  }
+
+  stream(): Stream {
+    return new Stream(this);
+  }
+}
+
+export class Stream {
+  private off = 0;
+
+  constructor(private view: View) { }
+
+  read<T>(acc: Accessor<T>): T {
+    const value = acc.read(this.view, this.off);
+    this.off += acc.size;
+    return value;
+  }
+
+  write<T>(acc: Accessor<T>, value: T): void {
+    acc.write(this.view, this.off, value);
+    this.off += acc.size;
+  }
+
+  setOffset(off: number) {
+    this.off = off;
+  }
+
+  eoi(): boolean {
+    return this.off >= this.view.buff.byteLength;
   }
 }
 
@@ -217,14 +200,14 @@ function fromSigned(value: number, bits: number) {
     : (~(-value) & mask) + 1;
 }
 
-type ScalarReader<T> = (s: Stream) => T;
-type ScalarWriter<T> = (s: Stream, value: T) => void;
+type ScalarReader<T> = (v: View, off: number) => T;
+type ScalarWriter<T> = (v: View, off: number, value: T) => void;
 
-export interface Accessor<T> {
-  readonly read: ScalarReader<T>;
-  readonly write: ScalarWriter<T>;
-  readonly size: number;
-}
+export type Accessor<T> = Readonly<{
+  read: ScalarReader<T>;
+  write: ScalarWriter<T>;
+  size: number;
+}>
 
 export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
 
@@ -242,43 +225,70 @@ function atomicReader<T, AT>(read: ScalarReader<T>, write: ScalarWriter<T>, size
   return { read, write, size, atomicArrayConstructor };
 }
 
-export const byte = atomicReader<number, Int8Array<ArrayBuffer>>(s => s.readByte(), (s, v) => s.writeByte(v), 1, Int8Array);
-export const ubyte = atomicReader<number, Uint8Array<ArrayBuffer>>(s => s.readUByte(), (s, v) => s.writeUByte(v), 1, Uint8Array);
-export const short = atomicReader<number, Int16Array<ArrayBuffer>>(s => s.readShort(), (s, v) => s.writeShort(v), 2, Int16Array);
-export const ushort = atomicReader<number, Uint16Array<ArrayBuffer>>(s => s.readUShort(), (s, v) => s.writeUShort(v), 2, Uint16Array);
-export const int = atomicReader<number, Int32Array<ArrayBuffer>>(s => s.readInt(), (s, v) => s.writeInt(v), 4, Int32Array);
-export const uint = atomicReader<number, Uint32Array<ArrayBuffer>>(s => s.readUInt(), (s, v) => s.writeUInt(v), 4, Uint32Array);
-export const float = atomicReader<number, Float32Array<ArrayBuffer>>(s => s.readFloat(), (s, v) => s.writeFloat(v), 4, Float32Array);
-export const string = (len: number) => accessor(s => s.readByteString(len), (s, v) => s.writeByteString(len, v), len);
-export const bits = (len: number) => accessor(s => s.readBits(len), (s, v) => s.writeBits(len, v), Math.abs(len) / 8);
-export const bits_signed = (len: number) => accessor(s => s.readBitsSigned(len), (s, v) => s.writeBits(len, v), Math.abs(len) / 8);
-export const bit = accessor(s => s.readBits(1) === 1, (s, v) => s.writeBits(1, v ? 1 : 0), 1 / 8)
-export const array = <T>(type: Accessor<T>, len: number) => accessor(s => readArray(s, type, len), (s, v) => writeArray(s, type, len, v), type.size * len);
-export const atomic_array = <T>(type: AtomicReader<any, T>, len: number) => accessor(s => readAtomicArray(s, type, len), (s, v) => writeAtomicArray(s, type, len, v), type.size * len);
+export const transformed = <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) =>
+  accessor((view, off) => from(stored.read(view, off)), (view, off, v) => stored.write(view, off, to(v)), stored.size);
+export const byte = atomicReader<number, Int8Array<ArrayBuffer>>((v, off) => v.readByte(off), (view, off, v) => view.writeByte(off, v), 1, Int8Array);
+export const ubyte = atomicReader<number, Uint8Array<ArrayBuffer>>((v, off) => v.readUByte(off), (view, off, v) => view.writeUByte(off, v), 1, Uint8Array);
+export const short = atomicReader<number, Int16Array<ArrayBuffer>>((view, off) => view.readShort(off), (view, off, v) => view.writeShort(off, v), 2, Int16Array);
+export const ushort = atomicReader<number, Uint16Array<ArrayBuffer>>((view, off) => view.readUShort(off), (view, off, v) => view.writeUShort(off, v), 2, Uint16Array);
+export const int = atomicReader<number, Int32Array<ArrayBuffer>>((view, off) => view.readInt(off), (view, off, v) => view.writeInt(off, v), 4, Int32Array);
+export const uint = atomicReader<number, Uint32Array<ArrayBuffer>>((view, off) => view.readUInt(off), (view, off, v) => view.writeUInt(off, v), 4, Uint32Array);
+export const float = atomicReader<number, Float32Array<ArrayBuffer>>((view, off) => view.readFloat(off), (view, off, v) => view.writeFloat(off, v), 4, Float32Array);
+export const string = (len: number) => accessor((view, off) => view.readByteString(off, len), (view, off, v) => view.writeByteString(off, len, v), len);
+export const bits_unsigned = (len: number) => accessor((view, off) => view.readBits(off, len), (view, off, v) => view.writeBits(off, len, v), len / 8);
+export const bits_signed = (len: number) => transformed<number, number>(bits_unsigned(len), x => fromSigned(x, len), x => toSigned(x, len));
+export const bits = (len: number) => len < 0 ? bits_signed(-len) : bits_unsigned(len);
+export const bit = transformed<number, boolean>(bits_unsigned(1), x => x ? 1 : 0, x => x === 1);
+export const array = <T>(type: Accessor<T>, len: number) =>
+  accessor((view, off) => readArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
+export const atomic_array = <T>(type: AtomicReader<any, T>, len: number) =>
+  accessor((view, off) => readAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
 export const struct = <T>(type?: Supplier<T>) => new StructBuilderFromType(type);
 export const builder = () => new StructBuilder();
-export const transformed = <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) =>
-  accessor(s => from(stored.read(s)), (s, v) => stored.write(s, to(v)), stored.size);
 
-const readArray = <T>(s: Stream, type: Accessor<T>, len: number): Array<T> => {
-  const arr = new Array<T>();
-  for (let i = 0; i < len; i++)
-    arr[i] = type.read(s);
-  return arr;
+const readArray = <T>(v: View, off: number, type: Accessor<T>, len: number): Array<T> => {
+  let offPtr = off;
+  const arr = new Array<T>(len);
+  for (let i = 0; i < len; i++) {
+    arr[i] = type.read(v, offPtr);
+    offPtr += type.size;
+  }
+  return new Proxy(arr, {
+    get: (target, prop, receiver) => {
+      if (typeof prop === 'string') {
+        const index = Number(prop);
+        if (index >= 0 && index < len)
+          return type.read(v, off + index * type.size);
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+    set: (target, prop, newValue, receiver): boolean => {
+      if (typeof prop === 'string') {
+        const index = Number(prop);
+        if (index >= 0 && index < len)
+          type.write(v, off + index * type.size, newValue);
+        return true;
+      }
+      return Reflect.set(target, prop, newValue, receiver);
+    }
+  });
 }
 
-const writeArray = <T>(s: Stream, type: Accessor<T>, len: number, value: Array<T>): void => {
-  for (let i = 0; i < len; i++) type.write(s, value[i]);
+const writeArray = <T>(v: View, off: number, type: Accessor<T>, len: number, value: Array<T>): void => {
+  for (let i = 0; i < len; i++) {
+    type.write(v, off, value[i]);
+    off += type.size;
+  }
 }
 
-const readAtomicArray = <T>(s: Stream, type: AtomicReader<any, T>, len: number) => {
+const readAtomicArray = <T>(v: View, off: number, type: AtomicReader<any, T>, len: number) => {
   const ctr = type.atomicArrayConstructor;
-  const buffer = s.readArrayBuffer(len * type.size);
+  const buffer = v.readArrayBuffer(off, len * type.size);
   return new ctr(buffer, 0, len);
 }
 
-const writeAtomicArray = <T>(s: Stream, type: AtomicReader<any, T>, len: number, value: T) => {
-  s.writeArrayBuffer((value as any).buffer, len);
+const writeAtomicArray = <T>(v: View, off: number, type: AtomicReader<any, T>, len: number, value: T) => {
+  v.writeArrayBuffer(off, (value as any).buffer, len);
 }
 
 type Field<T, F extends keyof T = any> = [keyof T, Accessor<T[F]>];
@@ -294,33 +304,61 @@ class StructBuilderFromType<T> implements Accessor<T> {
     return this;
   }
 
-  read(s: Stream) {
+  read(v: View, off: number) {
     const struct = this.ctr?.() ?? {} as T;
-    this.fields.forEach(([name, reader]) => struct[name] = reader.read(s));
+    this.fields.forEach(([name, accessor]) => {
+      struct[name] = accessor.read(v, off);
+      off += accessor.size;
+    });
     return struct;
   }
 
-  write(s: Stream, value: T) {
-    this.fields.forEach(([name, accessor]) => accessor.write(s, value[name]));
+  write(v: View, off: number, value: T) {
+    this.fields.forEach(([name, accessor]) => {
+      accessor.write(v, off, value[name]);
+      off += accessor.size;
+    });
   }
 }
 
-class StructBuilder<T> {
-  constructor(private fields: Field<any>[] = []) { }
+class StructBuilder<T extends object> {
+  constructor(
+    private fields: [Field<any>, number][] = [],
+    private off = 0
+  ) { }
 
   field<K extends string, T1>(name: K, accessor: Accessor<T1>): StructBuilder<T & { [P in K]: T1 }> {
-    this.fields.push([name, accessor]);
-    return new StructBuilder<T & { [P in K]: T1 }>(this.fields);
+    this.fields.push([[name, accessor], this.off]);
+    return new StructBuilder<T & { [P in K]: T1 }>(this.fields, this.off + accessor.size);
   }
 
   build(): Accessor<T> {
-    const read = (s: Stream) => {
+    const fieldsMap = iter(this.fields).toMap(([[name]]) => name, ([[_, acc], off]) => pair(acc, off));
+    const read = (v: View, off: number) => {
       const struct = {} as T;
-      this.fields.forEach(([name, reader]) => struct[name as keyof T] = reader.read(s));
-      return struct;
+      this.fields.forEach(([[name, accessor], fieldOff]) => struct[name as keyof T] = accessor.read(v, off + fieldOff));
+      return new Proxy(struct, {
+        get: (target, prop, receiver) => {
+          const field = fieldsMap.get(prop);
+          if (field !== undefined) {
+            const [acc, fieldOff] = field;
+            return acc.read(v, off + fieldOff);
+          }
+          Reflect.get(target, prop, receiver);
+        },
+        set: (target, prop, newValue, receiver): boolean => {
+          const field = fieldsMap.get(prop);
+          if (field !== undefined) {
+            const [acc, fieldOff] = field;
+            acc.write(v, off + fieldOff, newValue);
+            return true;
+          }
+          return Reflect.set(target, prop, newValue, receiver);
+        },
+      });
     }
-    const write = (s: Stream, value: T) => this.fields.forEach(([name, accessor]) => accessor.write(s, value[name as keyof T]));
-    const size = this.fields.map(([_, r]) => r.size).reduce(sum);
+    const write = (v: View, off: number, value: T) => this.fields.forEach(([[name, accessor], fieldOff]) => accessor.write(v, off + fieldOff, value[name as keyof T]));
+    const size = this.fields.map(([[_, r]]) => r.size).reduce(sum);
     return { read, write, size };
   }
 }

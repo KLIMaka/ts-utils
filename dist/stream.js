@@ -164,6 +164,9 @@ export class Stream {
     skip(off) {
         this.off += off;
     }
+    mark() {
+        return this.off;
+    }
 }
 function toSigned(value, bits) {
     return value & (1 << (bits - 1))
@@ -233,8 +236,7 @@ const writeArray = (v, off, type, len, value) => {
 };
 const readAtomicArray = (v, off, type, len) => {
     const ctr = type.atomicArrayConstructor;
-    const buffer = v.readArrayBuffer(off, len * type.size);
-    return new ctr(buffer, 0, len);
+    return new ctr(v.buff, off, len * type.size);
 };
 const writeAtomicArray = (v, off, type, len, value) => {
     v.writeArrayBuffer(off, value.buffer, len);

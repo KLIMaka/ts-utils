@@ -120,8 +120,6 @@ test('not int offsets', () => {
 });
 
 test('view', () => {
-  const buffer = new ArrayBuffer(32);
-  const view = new View(buffer);
 
   const struct = builder()
     .field('a', byte)
@@ -130,37 +128,58 @@ test('view', () => {
     .field('c', string(8))
     .field('arr', array(builder()
       .field('name', string(2))
+      .field('atoms', atomic_array(byte, 2))
       .field('id', byte)
       .build(), 2))
     .build();
+
+  expect(struct.size).toBe(20);
+  const buffer = new ArrayBuffer(struct.size * 2);
+  const view = new View(buffer);
 
   let vstruct = struct.read(view, 0);
   vstruct.a = -11;
   vstruct.b = true;
   vstruct.rest = 99;
   vstruct.c = 'foo';
-  vstruct.arr[1] = { name: 'az', id: 12 }
+  vstruct.arr[1] = { name: 'az', id: 12, atoms: new Int8Array([1, 2]) }
 
   vstruct = struct.read(view, struct.size);
   vstruct.a = 42;
   vstruct.b = false;
   vstruct.rest = 9999999;
   vstruct.c = 'bar';
+  vstruct.arr[1].name = 'xx';
+  vstruct.arr[0].atoms[1] = -120;
 
   const values = array(struct, 2).read(view, 0);
-  expect(values).toMatchObject([
-    { a: -11, b: true, c: 'foo', rest: 99, arr: [{ name: "", id: 0 }, { name: 'az', id: 12 }] },
-    { a: 42, b: false, c: 'bar', rest: 127, arr: [{ name: "", id: 0 }, { name: "", id: 0 }] }]);
+  expect(values).toStrictEqual([
+    { a: -11, b: true, c: 'foo', rest: 99, arr: [{ name: "", id: 0, atoms: new Int8Array([0, 0]) }, { name: 'az', id: 12, atoms: new Int8Array([1, 2]) }] },
+    { a: 42, b: false, c: 'bar', rest: 127, arr: [{ name: "", id: 0, atoms: new Int8Array([0, -120]) }, { name: "xx", id: 0, atoms: new Int8Array([0, 0]) }] }]);
 })
 
 test('clone', () => {
   const view = new View(new ArrayBuffer(32));
 
+  type T1 = { a: number, b: number, c: number, x: number };
+  const struct = builder()
+    .field('a', byte)
+    .field('b', bits(4))
+    .field('c', bits_signed(4))
+    .build<T1>();
+
   const tt = { a: 1, b: 2, c: 3, x: 42 };
   testStruct.write(view, 0, tt);
 
-  const copy = testStruct.read(view, 0) as AccessorType<typeof testStruct> & { x: number };
+  const copy = struct.read(view, 0);
   copy.x = 12;
 
   expect(copy.x).toBe(12);
+
+  const copyOfCopy = { ...copy };
+  expect(copyOfCopy).toStrictEqual({ a: 1, b: 2, c: 3, x: 12 });
+
+  view.writeUByte(0, 11);
+  const copyOfCopy1 = { ...copy };
+  expect(copyOfCopy1).toStrictEqual({ a: 11, b: 2, c: 3, x: 12 });
 })

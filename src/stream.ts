@@ -189,6 +189,10 @@ export class Stream {
   skip(off: number) {
     this.off += off;
   }
+
+  mark(): number {
+    return this.off;
+  }
 }
 
 function toSigned(value: number, bits: number) {
@@ -286,8 +290,7 @@ const writeArray = <T>(v: View, off: number, type: Accessor<T>, len: number, val
 
 const readAtomicArray = <T>(v: View, off: number, type: AtomicReader<any, T>, len: number) => {
   const ctr = type.atomicArrayConstructor;
-  const buffer = v.readArrayBuffer(off, len * type.size);
-  return new ctr(buffer, 0, len);
+  return new ctr(v.buff, off, len * type.size);
 }
 
 const writeAtomicArray = <T>(v: View, off: number, type: AtomicReader<any, T>, len: number, value: T) => {
@@ -307,12 +310,12 @@ class StructBuilder<T extends object> {
     return new StructBuilder<T & { [P in K]: T1 }>(this.fields, this.off + accessor.size);
   }
 
-  build(): Accessor<T> {
+  build<Target extends T = T>(): Accessor<Target> {
     const size = this.fields.map(([[_, r]]) => r.size).reduce(sum);
     if (size === 0 || toInt(size) !== size) throw new Error(`Invalid type size: ${size}`);
     const fieldsMap = iter(this.fields).toMap(([[name]]) => name, ([[_, acc], off]) => pair(acc, off));
     const read = (v: View, off: number) => {
-      const struct = {} as T;
+      const struct = {} as Target;
       this.fields.forEach(([[name, accessor], fieldOff]) => struct[name as keyof T] = accessor.read(v, off + fieldOff));
       return new Proxy(struct, {
         get: (target, prop, receiver) => {

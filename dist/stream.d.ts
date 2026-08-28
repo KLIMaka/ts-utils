@@ -37,6 +37,7 @@ export declare class Stream {
     setOffset(off: number): void;
     eoi(): boolean;
     skip(off: number): void;
+    mark(): number;
 }
 type ScalarReader<T> = (v: View, off: number) => T;
 type ScalarWriter<T> = (v: View, off: number, value: T) => void;
@@ -108,7 +109,7 @@ declare class StructBuilder<T extends object> {
     field<K extends string, T1>(name: K, accessor: Accessor<T1>): StructBuilder<T & {
         [P in K]: T1;
     }>;
-    build(): Accessor<T>;
+    build<Target extends T = T>(): Accessor<Target>;
 }
 export {};
 //# sourceMappingURL=stream.d.ts.map

@@ -1,3 +1,5 @@
+import { iter } from '../src/iter';
+import { field } from '../src/objects';
 import { Accessor, AccessorType, array, atomic_array, bit, bits, bits_signed, builder, byte, float, int, short, Stream, string, transformed, ubyte, uint, ushort, View } from '../src/stream';
 
 type Test = {
@@ -62,7 +64,8 @@ test('struct-builder', () => {
   const t: AccessorType<typeof struct> = { a: 12, b: 4, c: -4 };
   stream.write(atomic_array(byte, 2), new Int8Array([12, 0b11000100]));
   stream.setOffset(0);
-  expect(stream.read(struct)).toMatchObject(t);
+  const readed = stream.read(struct);
+  expect(readed).toMatchObject(t);
 
   view.writeUShort(0, 0);
   stream.setOffset(0);
@@ -188,4 +191,30 @@ test('clone', () => {
   view.writeUByte(0, 11);
   const copyOfCopy1 = { ...copy };
   expect(copyOfCopy1).toStrictEqual({ a: 11, b: 2, c: 3, x: 12 });
+})
+
+test('iterable', () => {
+  const view = new View(new ArrayBuffer(32));
+  const t = builder()
+    .field('a', bits(4))
+    .field('b', bits(4))
+    .build();
+  array(t, 4).write(view, 0, [{ a: 1, b: 2 }, { a: 2, b: 4 }, { a: 3, b: 9 }, { a: 4, b: 16 }]);
+  const [a, b, c, d] = array(t, 4).read(view, 0);
+
+  expect(a).toStrictEqual({ a: 1, b: 2 });
+  expect(b).toStrictEqual({ a: 2, b: 4 });
+  expect(c).toStrictEqual({ a: 3, b: 9 });
+  expect(d).toStrictEqual({ a: 4, b: 0 });
+
+
+  const value = array(t, 4).read(view, 0);
+  const container = { value };
+  const x = iter(container.value)
+    .enumerate()
+    .filter(([{ a }]) => a > 2)
+    .map(([{ b }, i]) => b + i)
+    .collect();
+
+  expect(x).toStrictEqual([11, 3]);
 })

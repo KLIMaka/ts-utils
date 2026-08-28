@@ -196,25 +196,56 @@ export const array = (type, len) => accessor((view, off) => readArray(view, off,
 export const atomic_array = (type, len) => accessor((view, off) => readAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
 export const builder = () => new StructBuilder();
 const readArray = (v, off, type, len) => {
-    let offPtr = off;
-    const arr = new Array(len);
-    for (let i = 0; i < len; i++) {
-        arr[i] = type.read(v, offPtr);
-        offPtr += type.size;
-    }
-    return new Proxy(arr, {
-        get: (target, prop, receiver) => {
-            if (typeof prop === 'string') {
-                const index = Number(prop);
-                if (index >= 0 && index < len)
-                    return type.read(v, off + index * type.size);
+    // let offPtr = off;
+    // const arr = new Array<T>(len);
+    // for (let i = 0; i < len; i++) {
+    //   arr[i] = type.read(v, offPtr);
+    //   offPtr += type.size;
+    // }
+    const target = new Array(len);
+    const getIndex = (prop) => {
+        if (typeof prop !== 'string')
+            return undefined;
+        const index = Number(prop);
+        return Number.isInteger(index) && index >= 0 && index < len && String(index) === prop
+            ? index
+            : undefined;
+    };
+    return new Proxy(target, {
+        ownKeys: target => {
+            const keys = Array.from({ length: len }, (_, index) => String(index));
+            for (const key of Reflect.ownKeys(target)) {
+                if (!keys.includes(key))
+                    keys.push(key);
             }
+            return keys;
+        },
+        getOwnPropertyDescriptor: (target, prop) => {
+            const descriptor = Reflect.getOwnPropertyDescriptor(target, prop);
+            if (descriptor !== undefined)
+                return descriptor;
+            const index = getIndex(prop);
+            if (index === undefined)
+                return undefined;
+            return {
+                configurable: true,
+                enumerable: true,
+                get: () => type.read(v, off + index * type.size),
+                set: value => type.write(v, off + index * type.size, value),
+            };
+        },
+        get: (target, prop, receiver) => {
+            if (prop === 'length')
+                return len;
+            const index = getIndex(prop);
+            if (index !== undefined)
+                return type.read(v, off + index * type.size);
             return Reflect.get(target, prop, receiver);
         },
         set: (target, prop, newValue, receiver) => {
             if (typeof prop === 'string') {
-                const index = Number(prop);
-                if (index >= 0 && index < len)
+                const index = getIndex(prop);
+                if (index !== undefined)
                     type.write(v, off + index * type.size, newValue);
                 return true;
             }
@@ -253,8 +284,32 @@ class StructBuilder {
         const fieldsMap = iter(this.fields).toMap(([[name]]) => name, ([[_, acc], off]) => pair(acc, off));
         const read = (v, off) => {
             const struct = {};
-            this.fields.forEach(([[name, accessor], fieldOff]) => struct[name] = accessor.read(v, off + fieldOff));
+            // this.fields.forEach(([[name, accessor], fieldOff]) => struct[name as keyof T] = accessor.read(v, off + fieldOff));
             return new Proxy(struct, {
+                ownKeys: target => {
+                    const keys = Reflect.ownKeys(target);
+                    for (const name of fieldsMap.keys()) {
+                        const key = typeof name === 'number' ? String(name) : name;
+                        if (!keys.includes(key))
+                            keys.push(key);
+                    }
+                    return keys;
+                },
+                getOwnPropertyDescriptor: (target, prop) => {
+                    const descriptor = Reflect.getOwnPropertyDescriptor(target, prop);
+                    if (descriptor !== undefined)
+                        return descriptor;
+                    const field = fieldsMap.get(prop);
+                    if (field === undefined)
+                        return undefined;
+                    const [acc, fieldOff] = field;
+                    return {
+                        configurable: true,
+                        enumerable: true,
+                        get: () => acc.read(v, off + fieldOff),
+                        set: value => acc.write(v, off + fieldOff, value),
+                    };
+                },
                 get: (target, prop, receiver) => {
                     const field = fieldsMap.get(prop);
                     if (field !== undefined) {

@@ -56,13 +56,19 @@ test('struct-builder', () => {
 
   expect(struct.size).toBe(testStruct.size);
 
-  const buffer = new ArrayBuffer(32);
+  const buffer = new ArrayBuffer(2);
   const view = new View(buffer);
   const stream = view.stream();
   const t: AccessorType<typeof struct> = { a: 12, b: 4, c: -4 };
   stream.write(atomic_array(byte, 2), new Int8Array([12, 0b11000100]));
   stream.setOffset(0);
   expect(stream.read(struct)).toMatchObject(t);
+
+  view.writeUShort(0, 0);
+  stream.setOffset(0);
+  stream.write(struct, t);
+  stream.setOffset(0);
+  expect(stream.read(atomic_array(byte, 2))).toStrictEqual(new Int8Array([12, 0b11000100]));
 
   const v = struct.read(view, 0);
   v.c = -22;

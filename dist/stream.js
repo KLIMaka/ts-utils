@@ -102,16 +102,13 @@ export class View {
         let [byteOff, bitOff] = this.getOff(off, false);
         let word = this.view.getUint8(byteOff);
         for (let i = 0; i < bits; i++) {
+            if (i !== 0 && bitOff === 0)
+                word = this.view.getUint8(byteOff);
             const bit = ((word >> bitOff) & 1);
             value |= bit << i;
-            if (bitOff === 7) {
+            bitOff = (bitOff + 1) & 7;
+            if (bitOff === 0)
                 byteOff++;
-                word = this.view.getUint8(byteOff);
-                bitOff = 0;
-            }
-            else {
-                bitOff++;
-            }
         }
         return value;
     }
@@ -119,22 +116,19 @@ export class View {
         let [byteOff, bitOff] = this.getOff(off, false);
         let word = this.view.getUint8(byteOff);
         for (let i = 0; i < bits; i++) {
+            if (i !== 0 && bitOff === 0)
+                word = this.view.getUint8(byteOff);
             const bit = ((value >> i) & 1) === 1;
             if (bit)
                 word |= (1 << bitOff);
             else
                 word &= (~(1 << bitOff) & 0xffffffff);
-            if (bitOff === 7) {
-                this.view.setUint8(byteOff, word);
-                byteOff++;
-                word = this.view.getUint8(byteOff);
-                bitOff = 0;
-            }
-            else {
-                bitOff++;
-            }
+            bitOff = (bitOff + 1) & 7;
+            if (bitOff === 0)
+                this.view.setUint8(byteOff++, word);
         }
-        this.view.setUint8(byteOff, word);
+        if (bitOff !== 0)
+            this.view.setUint8(byteOff, word);
     }
     stream() {
         return new Stream(this);

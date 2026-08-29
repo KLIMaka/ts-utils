@@ -223,6 +223,10 @@ function viewArray(v, off, type, len) {
             : undefined;
     };
     return new Proxy(target, {
+        has: (target, prop) => {
+            const index = getIndex(prop);
+            return index !== undefined || Reflect.has(target, prop);
+        },
         ownKeys: target => {
             const keys = Array.from({ length: len }, (_, index) => String(index));
             for (const key of Reflect.ownKeys(target)) {

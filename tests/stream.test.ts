@@ -217,3 +217,16 @@ test('iterable', () => {
 
   expect(x).toStrictEqual([11, 3]);
 })
+
+test('array view supports standard iteration methods', () => {
+  const view = new View(new ArrayBuffer(4));
+  const values = array(byte, 4);
+  values.write(view, 0, [1, 2, 3, 4]);
+
+  const arrayView = values.view(view, 0);
+  const visited: number[] = [];
+  arrayView.forEach(value => visited.push(value));
+
+  expect(visited).toStrictEqual([1, 2, 3, 4]);
+  expect(arrayView.map(value => value * 2)).toStrictEqual([2, 4, 6, 8]);
+})

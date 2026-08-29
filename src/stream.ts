@@ -276,6 +276,10 @@ function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): Arr
       : undefined;
   };
   return new Proxy(target, {
+    has: (target, prop) => {
+      const index = getIndex(prop);
+      return index !== undefined || Reflect.has(target, prop);
+    },
     ownKeys: target => {
       const keys: (string | symbol)[] = Array.from({ length: len }, (_, index) => String(index));
       for (const key of Reflect.ownKeys(target)) {

@@ -155,16 +155,22 @@ export class View {
 export class Stream {
   private off = 0;
 
-  constructor(private view: View) { }
+  constructor(private viewImpl: View) { }
 
   read<T>(acc: Accessor<T>): T {
-    const value = acc.read(this.view, this.off);
+    const value = acc.read(this.viewImpl, this.off);
+    this.off += acc.size;
+    return value;
+  }
+
+  view<T>(acc: Accessor<T>): T {
+    const value = acc.view(this.viewImpl, this.off);
     this.off += acc.size;
     return value;
   }
 
   write<T>(acc: Accessor<T>, value: T): void {
-    acc.write(this.view, this.off, value);
+    acc.write(this.viewImpl, this.off, value);
     this.off += acc.size;
   }
 
@@ -173,7 +179,7 @@ export class Stream {
   }
 
   eoi(): boolean {
-    return this.off >= this.view.buff.byteLength;
+    return this.off >= this.viewImpl.buff.byteLength;
   }
 
   skip(off: number) {
@@ -202,6 +208,7 @@ type ScalarReader<T> = (v: View, off: number) => T;
 type ScalarWriter<T> = (v: View, off: number, value: T) => void;
 
 export type Accessor<T> = Readonly<{
+  view: ScalarReader<T>;
   read: ScalarReader<T>;
   write: ScalarWriter<T>;
   size: number;
@@ -209,18 +216,23 @@ export type Accessor<T> = Readonly<{
 
 export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
 
-type AtomicArrayConstructor<T> = { new(buffer: ArrayBuffer, byteOffset: number, length: number): T };
+type HasSlice<T> = { slice(): T };
+type AtomicArrayConstructor<T extends HasSlice<T>> = { new(buffer: ArrayBuffer, byteOffset: number, length: number): T };
 
-export interface AtomicReader<T, AT> extends Accessor<T> {
+export interface AtomicReader<T, AT extends HasSlice<AT>> extends Accessor<T> {
   readonly atomicArrayConstructor: AtomicArrayConstructor<AT>;
 }
 
 function accessor<T>(read: ScalarReader<T>, write: ScalarWriter<T>, size: number): Accessor<T> {
-  return { read, write, size };
+  return { read, view: read, write, size };
 }
 
-function atomicReader<T, AT>(read: ScalarReader<T>, write: ScalarWriter<T>, size: number, atomicArrayConstructor: AtomicArrayConstructor<AT>): AtomicReader<T, AT> {
-  return { read, write, size, atomicArrayConstructor };
+function viewAccessor<T>(read: ScalarReader<T>, view: ScalarReader<T>, write: ScalarWriter<T>, size: number): Accessor<T> {
+  return { read, view, write, size };
+}
+
+function atomicReader<T, AT extends HasSlice<AT>>(read: ScalarReader<T>, write: ScalarWriter<T>, size: number, atomicArrayConstructor: AtomicArrayConstructor<AT>): AtomicReader<T, AT> {
+  return { read, view: read, write, size, atomicArrayConstructor };
 }
 
 export const transformed = <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) =>
@@ -238,18 +250,22 @@ export const bits_signed = (len: number) => transformed<number, number>(bits_uns
 export const bits = (len: number) => len < 0 ? bits_signed(-len) : bits_unsigned(len);
 export const bit = transformed<number, boolean>(bits_unsigned(1), x => x ? 1 : 0, x => x === 1);
 export const array = <T>(type: Accessor<T>, len: number) =>
-  accessor((view, off) => readArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
-export const atomic_array = <T>(type: AtomicReader<any, T>, len: number) =>
-  accessor((view, off) => readAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
+  viewAccessor((view, off) => readArray(view, off, type, len), (view, off) => viewArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
+export const atomic_array = <T extends HasSlice<T>>(type: AtomicReader<any, T>, len: number) =>
+  viewAccessor((view, off) => readAtomicArray(view, off, type, len), (view, off) => viewAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
 export const builder = () => new StructBuilder();
 
-const readArray = <T>(v: View, off: number, type: Accessor<T>, len: number): Array<T> => {
-  // let offPtr = off;
-  // const arr = new Array<T>(len);
-  // for (let i = 0; i < len; i++) {
-  //   arr[i] = type.read(v, offPtr);
-  //   offPtr += type.size;
-  // }
+function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number): Array<T> {
+  let offPtr = off;
+  const arr = new Array<T>(len);
+  for (let i = 0; i < len; i++) {
+    arr[i] = accessor.read(v, offPtr);
+    offPtr += accessor.size;
+  }
+  return arr;
+}
+
+function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): Array<T> {
   const target = new Array<T>(len);
   const getIndex = (prop: PropertyKey): number | undefined => {
     if (typeof prop !== 'string')
@@ -280,7 +296,7 @@ const readArray = <T>(v: View, off: number, type: Accessor<T>, len: number): Arr
       return {
         configurable: true,
         enumerable: true,
-        get: () => type.read(v, off + index * type.size),
+        get: () => type.view(v, off + index * type.size),
         set: value => type.write(v, off + index * type.size, value),
       };
     },
@@ -289,7 +305,7 @@ const readArray = <T>(v: View, off: number, type: Accessor<T>, len: number): Arr
         return len;
       const index = getIndex(prop);
       if (index !== undefined)
-        return type.read(v, off + index * type.size);
+        return type.view(v, off + index * type.size);
       return Reflect.get(target, prop, receiver);
     },
     set: (target, prop, newValue, receiver): boolean => {
@@ -304,19 +320,23 @@ const readArray = <T>(v: View, off: number, type: Accessor<T>, len: number): Arr
   });
 }
 
-const writeArray = <T>(v: View, off: number, type: Accessor<T>, len: number, value: Array<T>): void => {
+function writeArray<T>(v: View, off: number, type: Accessor<T>, len: number, value: Array<T>): void {
   for (let i = 0; i < len; i++) {
     type.write(v, off, value[i]);
     off += type.size;
   }
 }
 
-const readAtomicArray = <T>(v: View, off: number, type: AtomicReader<any, T>, len: number) => {
+function readAtomicArray<T extends HasSlice<T>>(v: View, off: number, type: AtomicReader<any, T>, len: number): T {
+  return viewAtomicArray(v, off, type, len).slice();
+}
+
+function viewAtomicArray<T extends HasSlice<T>>(v: View, off: number, type: AtomicReader<any, T>, len: number): T {
   const ctr = type.atomicArrayConstructor;
   return new ctr(v.buff, off, len * type.size);
 }
 
-const writeAtomicArray = <T>(v: View, off: number, type: AtomicReader<any, T>, len: number, value: T) => {
+function writeAtomicArray<T extends HasSlice<T>>(v: View, off: number, type: AtomicReader<any, T>, len: number, value: T) {
   v.writeArrayBuffer(off, (value as any).buffer, len);
 }
 
@@ -339,8 +359,11 @@ class StructBuilder<T extends object> {
     const fieldsMap = iter(this.fields).toMap(([[name]]) => name, ([[_, acc], off]) => pair(acc, off));
     const read = (v: View, off: number) => {
       const struct = {} as Target;
-      // this.fields.forEach(([[name, accessor], fieldOff]) => struct[name as keyof T] = accessor.read(v, off + fieldOff));
-      return new Proxy(struct, {
+      this.fields.forEach(([[name, accessor], fieldOff]) => struct[name as keyof T] = accessor.read(v, off + fieldOff));
+      return struct;
+    }
+    const view = (v: View, off: number) => {
+      return new Proxy({} as Target, {
         ownKeys: target => {
           const keys = Reflect.ownKeys(target);
           for (const name of fieldsMap.keys()) {
@@ -361,7 +384,7 @@ class StructBuilder<T extends object> {
           return {
             configurable: true,
             enumerable: true,
-            get: () => acc.read(v, off + fieldOff),
+            get: () => acc.view(v, off + fieldOff),
             set: value => acc.write(v, off + fieldOff, value),
           };
         },
@@ -369,7 +392,7 @@ class StructBuilder<T extends object> {
           const field = fieldsMap.get(prop);
           if (field !== undefined) {
             const [acc, fieldOff] = field;
-            return acc.read(v, off + fieldOff);
+            return acc.view(v, off + fieldOff);
           }
           return Reflect.get(target, prop, receiver);
         },
@@ -385,7 +408,7 @@ class StructBuilder<T extends object> {
       });
     }
     const write = (v: View, off: number, value: T) => this.fields.forEach(([[name, accessor], fieldOff]) => accessor.write(v, off + fieldOff, value[name as keyof T]));
-    return { read, write, size };
+    return { read, view, write, size };
   }
 }
 

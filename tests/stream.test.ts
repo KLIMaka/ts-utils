@@ -1,5 +1,4 @@
 import { iter } from '../src/iter';
-import { field } from '../src/objects';
 import { Accessor, AccessorType, array, atomic_array, bit, bits, bits_signed, builder, byte, float, int, short, Stream, string, transformed, ubyte, uint, ushort, View } from '../src/stream';
 
 type Test = {
@@ -73,7 +72,7 @@ test('struct-builder', () => {
   stream.setOffset(0);
   expect(stream.read(atomic_array(byte, 2))).toStrictEqual(new Int8Array([12, 0b11000100]));
 
-  const v = struct.read(view, 0);
+  const v = struct.view(view, 0);
   v.c = -22;
   expect(v).toMatchObject({ a: 12, b: 4, c: -6 });
 
@@ -107,7 +106,7 @@ test('transformed', () => {
   stream.setOffset(0);
   expect(stream.read(ubyte)).toBe(128);
 
-  const arr = tarray.read(view, 0);
+  const arr = tarray.view(view, 0);
   expect(arr).toMatchObject(['false', 'false', 'false', 'false', 'false', 'false', 'false', 'true']);
   arr[1] = 'true';
   expect(ubyte.read(view, 0)).toBe(130);
@@ -146,14 +145,14 @@ test('view', () => {
   const buffer = new ArrayBuffer(struct.size * 2);
   const view = new View(buffer);
 
-  let vstruct = struct.read(view, 0);
+  let vstruct = struct.view(view, 0);
   vstruct.a = -11;
   vstruct.b = true;
   vstruct.rest = 99;
   vstruct.c = 'foo';
   vstruct.arr[1] = { name: 'az', id: 12, atoms: new Int8Array([1, 2]) }
 
-  vstruct = struct.read(view, struct.size);
+  vstruct = struct.view(view, struct.size);
   vstruct.a = 42;
   vstruct.b = false;
   vstruct.rest = 9999999;
@@ -180,7 +179,7 @@ test('clone', () => {
   const tt = { a: 1, b: 2, c: 3, x: 42 };
   testStruct.write(view, 0, tt);
 
-  const copy = struct.read(view, 0);
+  const copy = struct.view(view, 0);
   copy.x = 12;
 
   expect(copy.x).toBe(12);

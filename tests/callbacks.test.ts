@@ -1,5 +1,5 @@
 import { enableMapSet } from "immer";
-import { objectEq, transformed, value, ValuesContainer } from "../src/callbacks";
+import { arrayEq, objectEq, transformed, value, ValuesContainer } from "../src/callbacks";
 import Optional from "optional-js";
 import { nil, spread } from "../src/types";
 import { sum } from "../src/mathutils";
@@ -170,19 +170,25 @@ test('tuple1', () => {
 test('transformedTuple', () => {
   const values = new ValuesContainer('container');
   const a = values.value('a', 1);
-  const b = values.value('b', new Set<string>());
+  const b = values.valueBuilder({ name: 'b', value: [] as string[], eq: arrayEq });
   const c = values.value('c', 'str');
 
-  const t = values.transformedTuple('t', [a, b, c], ([a, b, c]) => (a + b.size) + c);
+  const tt = values.tuple([a, b, c])
+  const t = values.transformed('t', tt, ([a, b, c]) => (a + b.length) + c);
   const log: string[] = [];
-  t.subscribe(t => log.push(t));
+  tt.subscribe(t => log.push(t.toString()));
 
   expect(log).toStrictEqual([]);
   expect(t.get()).toBe('1str');
   expect(log).toStrictEqual([]);
 
-  b.set(new Set(['1', '2']));
-  expect(log).toStrictEqual(['3str']);
+  b.set(['1', '2']);
+  expect(t.get()).toBe('3str');
+  expect(log).toStrictEqual(['1,1,2,str']);
+
+  b.set(['1', '2']);
+  expect(t.get()).toBe('3str');
+  expect(log).toStrictEqual(['1,1,2,str']);
 });
 
 test('values container', async () => {

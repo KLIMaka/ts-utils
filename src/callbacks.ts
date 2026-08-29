@@ -500,25 +500,16 @@ class Tuple<Args extends any[]> extends BaseValue<Args> {
 
   private actualize(forse = false) {
     if (!forse && this.hasSubscriptions() && this.value !== TUPLE_PLACEHOLDER) return;
-    const nvalue: Args = [] as any as Args;
-    this.sources.forEach((src, i) => {
-      const lastSrcMods = this.lastSrcMods[i];
-      const srcMods = src.mods()
-      nvalue[i] = srcMods !== lastSrcMods ? src.get() : this.value[i];
-      this.lastSrcMods[i] = srcMods;
+    this.modImmer(draft => {
+      this.sources.forEach((src, i) => {
+        const lastSrcMods = this.lastSrcMods[i];
+        const srcMods = src.mods()
+        if (srcMods !== lastSrcMods) {
+          draft[i] = src.get();
+          this.lastSrcMods[i] = srcMods;
+        }
+      });
     });
-    this.set(nvalue);
-
-    // this.modImmer(draft => {
-    //   this.sources.forEach((src, i) => {
-    //     const lastSrcMods = this.lastSrcMods[i];
-    //     const srcMods = src.mods()
-    //     if (srcMods !== lastSrcMods) {
-    //       draft[i] = src.get();
-    //       this.lastSrcMods[i] = srcMods;
-    //     }
-    //   });
-    // });
   }
 
   set(newValue: Args): void {

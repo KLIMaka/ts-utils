@@ -29,10 +29,11 @@ export declare class View {
     stream(): Stream;
 }
 export declare class Stream {
-    private view;
+    private viewImpl;
     private off;
-    constructor(view: View);
+    constructor(viewImpl: View);
     read<T>(acc: Accessor<T>): T;
+    view<T>(acc: Accessor<T>): T;
     write<T>(acc: Accessor<T>, value: T): void;
     setOffset(off: number): void;
     eoi(): boolean;
@@ -42,18 +43,23 @@ export declare class Stream {
 type ScalarReader<T> = (v: View, off: number) => T;
 type ScalarWriter<T> = (v: View, off: number, value: T) => void;
 export type Accessor<T> = Readonly<{
+    view: ScalarReader<T>;
     read: ScalarReader<T>;
     write: ScalarWriter<T>;
     size: number;
 }>;
 export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
-type AtomicArrayConstructor<T> = {
+type HasSlice<T> = {
+    slice(): T;
+};
+type AtomicArrayConstructor<T extends HasSlice<T>> = {
     new (buffer: ArrayBuffer, byteOffset: number, length: number): T;
 };
-export interface AtomicReader<T, AT> extends Accessor<T> {
+export interface AtomicReader<T, AT extends HasSlice<AT>> extends Accessor<T> {
     readonly atomicArrayConstructor: AtomicArrayConstructor<AT>;
 }
 export declare const transformed: <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) => Readonly<{
+    view: ScalarReader<Actual>;
     read: ScalarReader<Actual>;
     write: ScalarWriter<Actual>;
     size: number;
@@ -66,36 +72,43 @@ export declare const int: AtomicReader<number, Int32Array<ArrayBuffer>>;
 export declare const uint: AtomicReader<number, Uint32Array<ArrayBuffer>>;
 export declare const float: AtomicReader<number, Float32Array<ArrayBuffer>>;
 export declare const string: (len: number) => Readonly<{
+    view: ScalarReader<string>;
     read: ScalarReader<string>;
     write: ScalarWriter<string>;
     size: number;
 }>;
 export declare const bits_unsigned: (len: number) => Readonly<{
+    view: ScalarReader<number>;
     read: ScalarReader<number>;
     write: ScalarWriter<number>;
     size: number;
 }>;
 export declare const bits_signed: (len: number) => Readonly<{
+    view: ScalarReader<number>;
     read: ScalarReader<number>;
     write: ScalarWriter<number>;
     size: number;
 }>;
 export declare const bits: (len: number) => Readonly<{
+    view: ScalarReader<number>;
     read: ScalarReader<number>;
     write: ScalarWriter<number>;
     size: number;
 }>;
 export declare const bit: Readonly<{
+    view: ScalarReader<boolean>;
     read: ScalarReader<boolean>;
     write: ScalarWriter<boolean>;
     size: number;
 }>;
 export declare const array: <T>(type: Accessor<T>, len: number) => Readonly<{
+    view: ScalarReader<T[]>;
     read: ScalarReader<T[]>;
     write: ScalarWriter<T[]>;
     size: number;
 }>;
-export declare const atomic_array: <T>(type: AtomicReader<any, T>, len: number) => Readonly<{
+export declare const atomic_array: <T extends HasSlice<T>>(type: AtomicReader<any, T>, len: number) => Readonly<{
+    view: ScalarReader<T>;
     read: ScalarReader<T>;
     write: ScalarWriter<T>;
     size: number;

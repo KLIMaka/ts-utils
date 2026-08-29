@@ -135,25 +135,30 @@ export class View {
     }
 }
 export class Stream {
-    view;
+    viewImpl;
     off = 0;
-    constructor(view) {
-        this.view = view;
+    constructor(viewImpl) {
+        this.viewImpl = viewImpl;
     }
     read(acc) {
-        const value = acc.read(this.view, this.off);
+        const value = acc.read(this.viewImpl, this.off);
+        this.off += acc.size;
+        return value;
+    }
+    view(acc) {
+        const value = acc.view(this.viewImpl, this.off);
         this.off += acc.size;
         return value;
     }
     write(acc, value) {
-        acc.write(this.view, this.off, value);
+        acc.write(this.viewImpl, this.off, value);
         this.off += acc.size;
     }
     setOffset(off) {
         this.off = off;
     }
     eoi() {
-        return this.off >= this.view.buff.byteLength;
+        return this.off >= this.viewImpl.buff.byteLength;
     }
     skip(off) {
         this.off += off;
@@ -174,10 +179,13 @@ function fromSigned(value, bits) {
         : (~(-value) & mask) + 1;
 }
 function accessor(read, write, size) {
-    return { read, write, size };
+    return { read, view: read, write, size };
+}
+function viewAccessor(read, view, write, size) {
+    return { read, view, write, size };
 }
 function atomicReader(read, write, size, atomicArrayConstructor) {
-    return { read, write, size, atomicArrayConstructor };
+    return { read, view: read, write, size, atomicArrayConstructor };
 }
 export const transformed = (stored, to, from) => accessor((view, off) => from(stored.read(view, off)), (view, off, v) => stored.write(view, off, to(v)), stored.size);
 export const byte = atomicReader((v, off) => v.readByte(off), (view, off, v) => view.writeByte(off, v), 1, Int8Array);
@@ -192,16 +200,19 @@ export const bits_unsigned = (len) => accessor((view, off) => view.readBits(off,
 export const bits_signed = (len) => transformed(bits_unsigned(len), x => fromSigned(x, len), x => toSigned(x, len));
 export const bits = (len) => len < 0 ? bits_signed(-len) : bits_unsigned(len);
 export const bit = transformed(bits_unsigned(1), x => x ? 1 : 0, x => x === 1);
-export const array = (type, len) => accessor((view, off) => readArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
-export const atomic_array = (type, len) => accessor((view, off) => readAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
+export const array = (type, len) => viewAccessor((view, off) => readArray(view, off, type, len), (view, off) => viewArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
+export const atomic_array = (type, len) => viewAccessor((view, off) => readAtomicArray(view, off, type, len), (view, off) => viewAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
 export const builder = () => new StructBuilder();
-const readArray = (v, off, type, len) => {
-    // let offPtr = off;
-    // const arr = new Array<T>(len);
-    // for (let i = 0; i < len; i++) {
-    //   arr[i] = type.read(v, offPtr);
-    //   offPtr += type.size;
-    // }
+function readArray(v, off, accessor, len) {
+    let offPtr = off;
+    const arr = new Array(len);
+    for (let i = 0; i < len; i++) {
+        arr[i] = accessor.read(v, offPtr);
+        offPtr += accessor.size;
+    }
+    return arr;
+}
+function viewArray(v, off, type, len) {
     const target = new Array(len);
     const getIndex = (prop) => {
         if (typeof prop !== 'string')
@@ -230,7 +241,7 @@ const readArray = (v, off, type, len) => {
             return {
                 configurable: true,
                 enumerable: true,
-                get: () => type.read(v, off + index * type.size),
+                get: () => type.view(v, off + index * type.size),
                 set: value => type.write(v, off + index * type.size, value),
             };
         },
@@ -239,7 +250,7 @@ const readArray = (v, off, type, len) => {
                 return len;
             const index = getIndex(prop);
             if (index !== undefined)
-                return type.read(v, off + index * type.size);
+                return type.view(v, off + index * type.size);
             return Reflect.get(target, prop, receiver);
         },
         set: (target, prop, newValue, receiver) => {
@@ -252,20 +263,23 @@ const readArray = (v, off, type, len) => {
             return Reflect.set(target, prop, newValue, receiver);
         }
     });
-};
-const writeArray = (v, off, type, len, value) => {
+}
+function writeArray(v, off, type, len, value) {
     for (let i = 0; i < len; i++) {
         type.write(v, off, value[i]);
         off += type.size;
     }
-};
-const readAtomicArray = (v, off, type, len) => {
+}
+function readAtomicArray(v, off, type, len) {
+    return viewAtomicArray(v, off, type, len).slice();
+}
+function viewAtomicArray(v, off, type, len) {
     const ctr = type.atomicArrayConstructor;
     return new ctr(v.buff, off, len * type.size);
-};
-const writeAtomicArray = (v, off, type, len, value) => {
+}
+function writeAtomicArray(v, off, type, len, value) {
     v.writeArrayBuffer(off, value.buffer, len);
-};
+}
 class StructBuilder {
     fields;
     off;
@@ -284,8 +298,11 @@ class StructBuilder {
         const fieldsMap = iter(this.fields).toMap(([[name]]) => name, ([[_, acc], off]) => pair(acc, off));
         const read = (v, off) => {
             const struct = {};
-            // this.fields.forEach(([[name, accessor], fieldOff]) => struct[name as keyof T] = accessor.read(v, off + fieldOff));
-            return new Proxy(struct, {
+            this.fields.forEach(([[name, accessor], fieldOff]) => struct[name] = accessor.read(v, off + fieldOff));
+            return struct;
+        };
+        const view = (v, off) => {
+            return new Proxy({}, {
                 ownKeys: target => {
                     const keys = Reflect.ownKeys(target);
                     for (const name of fieldsMap.keys()) {
@@ -306,7 +323,7 @@ class StructBuilder {
                     return {
                         configurable: true,
                         enumerable: true,
-                        get: () => acc.read(v, off + fieldOff),
+                        get: () => acc.view(v, off + fieldOff),
                         set: value => acc.write(v, off + fieldOff, value),
                     };
                 },
@@ -314,7 +331,7 @@ class StructBuilder {
                     const field = fieldsMap.get(prop);
                     if (field !== undefined) {
                         const [acc, fieldOff] = field;
-                        return acc.read(v, off + fieldOff);
+                        return acc.view(v, off + fieldOff);
                     }
                     return Reflect.get(target, prop, receiver);
                 },
@@ -330,7 +347,7 @@ class StructBuilder {
             });
         };
         const write = (v, off, value) => this.fields.forEach(([[name, accessor], fieldOff]) => accessor.write(v, off + fieldOff, value[name]));
-        return { read, write, size };
+        return { read, view, write, size };
     }
 }
 //# sourceMappingURL=stream.js.map

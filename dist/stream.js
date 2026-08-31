@@ -75,6 +75,9 @@ export class View {
         const [byteOff] = this.getOff(off);
         this.view.setFloat32(byteOff, float, this.LE);
     }
+    readArray(off, len, ctr) {
+        return new ctr(this.arr.buffer, this.arr.byteOffset + off, len);
+    }
     writeArray(off, arr) {
         const [byteOff] = this.getOff(off);
         this.arr.set(arr, byteOff);
@@ -270,8 +273,7 @@ function readAtomicArray(v, off, type, len) {
     return viewAtomicArray(v, off, type, len).slice();
 }
 function viewAtomicArray(v, off, type, len) {
-    const ctr = type.atomicArrayConstructor;
-    return new ctr(v.arr.buffer, v.arr.byteOffset + off, len);
+    return v.readArray(off, len, type.atomicArrayConstructor);
 }
 function writeAtomicArray(v, off, type, len, value) {
     v.writeArray(off, new Uint8Array(value.buffer, value.byteOffset, len));

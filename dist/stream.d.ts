@@ -1,9 +1,9 @@
 import { Fn } from "./types";
 export declare class View {
-    readonly arr: Uint8Array<ArrayBuffer>;
+    readonly arr: Uint8Array;
     private LE;
     private view;
-    constructor(arr: Uint8Array<ArrayBuffer>, LE?: boolean);
+    constructor(arr: Uint8Array, LE?: boolean);
     private getOff;
     readByte(off: number): number;
     writeByte(off: number, byte: number): void;
@@ -19,6 +19,7 @@ export declare class View {
     writeUInt(off: number, int: number): void;
     readFloat(off: number): number;
     writeFloat(off: number, float: number): void;
+    readArray<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T;
     writeArray(off: number, arr: Uint8Array): void;
     readByteString(off: number, len: number): string;
     writeByteString(off: number, len: number, str: string): void;
@@ -53,7 +54,7 @@ type TypedView<T> = {
     slice(): T;
 };
 type AtomicArrayConstructor<T extends TypedView<T>> = {
-    new (buffer: ArrayBuffer, byteOffset: number, length: number): T;
+    new (buffer: ArrayBufferLike, byteOffset: number, length: number): T;
 };
 export interface AtomicReader<T, AT extends TypedView<AT>> extends Accessor<T> {
     readonly atomicArrayConstructor: AtomicArrayConstructor<AT>;

@@ -6,10 +6,10 @@ const DECODER = new TextDecoder();
 const ENCODER = new TextEncoder();
 
 export class View {
-  private view: DataView<ArrayBuffer>;
+  private view: DataView;
 
   constructor(
-    readonly arr: Uint8Array<ArrayBuffer>,
+    readonly arr: Uint8Array,
     private LE = true,
   ) {
     this.view = new DataView(this.arr.buffer, this.arr.byteOffset, this.arr.byteLength);
@@ -91,6 +91,10 @@ export class View {
   writeFloat(off: number, float: number): void {
     const [byteOff] = this.getOff(off);
     this.view.setFloat32(byteOff, float, this.LE);
+  }
+
+  readArray<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T {
+    return new ctr(this.arr.buffer, this.arr.byteOffset + off, len);
   }
 
   writeArray(off: number, arr: Uint8Array): void {
@@ -208,7 +212,7 @@ export type Accessor<T> = Readonly<{
 export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
 
 type TypedView<T> = { buffer: ArrayBuffer, byteOffset: number, slice(): T };
-type AtomicArrayConstructor<T extends TypedView<T>> = { new(buffer: ArrayBuffer, byteOffset: number, length: number): T };
+type AtomicArrayConstructor<T extends TypedView<T>> = { new(buffer: ArrayBufferLike, byteOffset: number, length: number): T };
 
 export interface AtomicReader<T, AT extends TypedView<AT>> extends Accessor<T> {
   readonly atomicArrayConstructor: AtomicArrayConstructor<AT>;
@@ -327,8 +331,7 @@ function readAtomicArray<T extends TypedView<T>>(v: View, off: number, type: Ato
 }
 
 function viewAtomicArray<T extends TypedView<T>>(v: View, off: number, type: AtomicReader<any, T>, len: number): T {
-  const ctr = type.atomicArrayConstructor;
-  return new ctr(v.arr.buffer, v.arr.byteOffset + off, len);
+  return v.readArray(off, len, type.atomicArrayConstructor);
 }
 
 function writeAtomicArray<T extends TypedView<T>>(v: View, off: number, type: AtomicReader<any, T>, len: number, value: T) {

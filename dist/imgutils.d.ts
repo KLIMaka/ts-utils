@@ -5,7 +5,7 @@ export declare function createPngBlob<P>(raster: Raster<P>, rasterizer: Rasteriz
 export declare function drawToCanvas<P>(raster: Raster<P>, ctx: CanvasRenderingContext2D, rasterizer: Rasterizer<P>, x?: number, y?: number): void;
 export declare function clearCanvas(canvas: HTMLCanvasElement, style: string): void;
 export declare function axisSwap(data: Uint8Array, w: number, h: number): Uint8Array;
-export declare function loadImageFromBuffer(buff: ArrayBuffer): Promise<[number, number, Uint8Array]>;
+export declare function loadImageFromBuffer(buff: BufferSource): Promise<[number, number, Uint8Array]>;
 export declare function loadImage(name: string): Promise<[number, number, Uint8Array]>;
 export declare function renderGrid(canvas: HTMLCanvasElement, xoff: number, yoff: number, scale: number, size: number, pixels: number): void;
 //# sourceMappingURL=imgutils.d.ts.map

@@ -42,7 +42,7 @@ export function axisSwap(data: Uint8Array, w: number, h: number): Uint8Array {
   return result;
 }
 
-export function loadImageFromBuffer(buff: ArrayBuffer): Promise<[number, number, Uint8Array]> {
+export function loadImageFromBuffer(buff: BufferSource): Promise<[number, number, Uint8Array]> {
   return new Promise(resolve => {
     const blob = new Blob([buff]);
     const urlCreator = window.URL;

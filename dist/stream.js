@@ -4,15 +4,13 @@ import { pair } from "./types";
 const DECODER = new TextDecoder();
 const ENCODER = new TextEncoder();
 export class View {
-    buff;
-    LE;
     arr;
+    LE;
     view;
-    constructor(buff, LE = true) {
-        this.buff = buff;
+    constructor(arr, LE = true) {
+        this.arr = arr;
         this.LE = LE;
-        this.arr = new Uint8Array(buff);
-        this.view = new DataView(buff);
+        this.view = new DataView(this.arr.buffer, this.arr.byteOffset, this.arr.byteLength);
     }
     getOff(off, check = true) {
         const byte = toInt(off);
@@ -77,25 +75,19 @@ export class View {
         const [byteOff] = this.getOff(off);
         this.view.setFloat32(byteOff, float, this.LE);
     }
-    readArrayBuffer(off, bytes) {
+    writeArray(off, arr) {
         const [byteOff] = this.getOff(off);
-        return this.view.buffer.slice(byteOff, off + bytes);
-    }
-    writeArrayBuffer(off, buffer, bytes = buffer.byteLength) {
-        const [byteOff] = this.getOff(off);
-        this.arr.set(new Uint8Array(buffer, 0, bytes), byteOff);
+        this.arr.set(arr, byteOff);
     }
     readByteString(off, len) {
         const [byteOff] = this.getOff(off);
-        const str = DECODER.decode(this.readArrayBuffer(byteOff, len));
+        const str = DECODER.decode(this.arr.subarray(byteOff, byteOff + len));
         const zero = str.indexOf('\0');
         return zero === -1 ? str : str.substring(0, zero);
     }
     writeByteString(off, len, str) {
         const [byteOff] = this.getOff(off);
-        const buff = new Uint8Array(len);
-        buff.set(ENCODER.encode(str).subarray(0, len));
-        this.writeArrayBuffer(byteOff, buff.buffer);
+        this.writeArray(byteOff, ENCODER.encode(str + '\0').subarray(0, len));
     }
     readBits(off, bits) {
         let value = 0;
@@ -158,7 +150,7 @@ export class Stream {
         this.off = off;
     }
     eoi() {
-        return this.off >= this.viewImpl.buff.byteLength;
+        return this.off >= this.viewImpl.arr.length;
     }
     skip(off) {
         this.off += off;
@@ -279,10 +271,10 @@ function readAtomicArray(v, off, type, len) {
 }
 function viewAtomicArray(v, off, type, len) {
     const ctr = type.atomicArrayConstructor;
-    return new ctr(v.buff, off, len * type.size);
+    return new ctr(v.arr.buffer, v.arr.byteOffset + off, len);
 }
 function writeAtomicArray(v, off, type, len, value) {
-    v.writeArrayBuffer(off, value.buffer, len);
+    v.writeArray(off, new Uint8Array(value.buffer, value.byteOffset, len));
 }
 class StructBuilder {
     fields;

@@ -20,8 +20,7 @@ function check<T>(stream: Stream, accessor: Accessor<T>, value: T): void {
 }
 
 test('write', () => {
-  const buffer = new ArrayBuffer(32);
-  const view = new View(buffer);
+  const view = new View(new Uint8Array(32));
   const stream = view.stream();
 
   check(stream, byte, 42);
@@ -57,8 +56,7 @@ test('struct-builder', () => {
 
   expect(struct.size).toBe(testStruct.size);
 
-  const buffer = new ArrayBuffer(2);
-  const view = new View(buffer);
+  const view = new View(new Uint8Array(2));
   const stream = view.stream();
   const t: AccessorType<typeof struct> = { a: 12, b: 4, c: -4 };
   stream.write(atomic_array(byte, 2), new Int8Array([12, 0b11000100]));
@@ -86,8 +84,7 @@ test('struct-builder', () => {
 })
 
 test('transformed', () => {
-  const buffer = new ArrayBuffer(32);
-  const view = new View(buffer);
+  const view = new View(new Uint8Array(32));
   const stream = view.stream();
 
   const tAccessor = transformed<boolean, string>(bit, s => s === 'true' ? true : false, s => s ? 'true' : 'false');
@@ -113,8 +110,7 @@ test('transformed', () => {
 })
 
 test('not int offsets', () => {
-  const buffer = new ArrayBuffer(32);
-  const view = new View(buffer);
+  const view = new View(new Uint8Array(32));
 
   const twoBits = bits(2);
 
@@ -142,8 +138,7 @@ test('view', () => {
     .build();
 
   expect(struct.size).toBe(20);
-  const buffer = new ArrayBuffer(struct.size * 2);
-  const view = new View(buffer);
+  const view = new View(new Uint8Array(struct.size * 2));
 
   let vstruct = struct.view(view, 0);
   vstruct.a = -11;
@@ -167,7 +162,7 @@ test('view', () => {
 })
 
 test('clone', () => {
-  const view = new View(new ArrayBuffer(32));
+  const view = new View(new Uint8Array(32));
 
   type T1 = { a: number, b: number, c: number, x: number };
   const struct = builder()
@@ -193,7 +188,7 @@ test('clone', () => {
 })
 
 test('iterable', () => {
-  const view = new View(new ArrayBuffer(32));
+  const view = new View(new Uint8Array(32));
   const t = builder()
     .field('a', bits(4))
     .field('b', bits(4))
@@ -219,7 +214,7 @@ test('iterable', () => {
 })
 
 test('array view supports standard iteration methods', () => {
-  const view = new View(new ArrayBuffer(4));
+  const view = new View(new Uint8Array(4));
   const values = array(byte, 4);
   values.write(view, 0, [1, 2, 3, 4]);
 
@@ -229,4 +224,19 @@ test('array view supports standard iteration methods', () => {
 
   expect(visited).toStrictEqual([1, 2, 3, 4]);
   expect(arrayView.map(value => value * 2)).toStrictEqual([2, 4, 6, 8]);
+})
+
+test('single buffer', () => {
+  const arrayBuffer = new ArrayBuffer(32);
+  const v1 = new View(new Uint8Array(arrayBuffer))
+  const v2 = new View(new Uint8Array(arrayBuffer, 2));
+
+  v1.writeByteString(0, 10, 'foobarbaz');
+  expect(v2.readByteString(0, 3)).toBe('oba');
+
+  v2.writeByteString(0, 2, 'xx');
+  expect(v1.readByteString(0, 32)).toBe('foxxarbaz');
+
+  v2.writeByteString(0, 3, 'zz');
+  expect(v1.readByteString(0, 32)).toBe('fozz');
 })

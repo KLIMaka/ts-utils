@@ -1,10 +1,9 @@
 import { Fn } from "./types";
 export declare class View {
-    readonly buff: ArrayBuffer;
+    readonly arr: Uint8Array<ArrayBuffer>;
     private LE;
-    private arr;
     private view;
-    constructor(buff: ArrayBuffer, LE?: boolean);
+    constructor(arr: Uint8Array<ArrayBuffer>, LE?: boolean);
     private getOff;
     readByte(off: number): number;
     writeByte(off: number, byte: number): void;
@@ -20,8 +19,7 @@ export declare class View {
     writeUInt(off: number, int: number): void;
     readFloat(off: number): number;
     writeFloat(off: number, float: number): void;
-    readArrayBuffer(off: number, bytes: number): ArrayBuffer;
-    writeArrayBuffer(off: number, buffer: ArrayBuffer, bytes?: number): void;
+    writeArray(off: number, arr: Uint8Array): void;
     readByteString(off: number, len: number): string;
     writeByteString(off: number, len: number, str: string): void;
     readBits(off: number, bits: number): number;
@@ -49,13 +47,15 @@ export type Accessor<T> = Readonly<{
     size: number;
 }>;
 export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
-type HasSlice<T> = {
+type TypedView<T> = {
+    buffer: ArrayBuffer;
+    byteOffset: number;
     slice(): T;
 };
-type AtomicArrayConstructor<T extends HasSlice<T>> = {
+type AtomicArrayConstructor<T extends TypedView<T>> = {
     new (buffer: ArrayBuffer, byteOffset: number, length: number): T;
 };
-export interface AtomicReader<T, AT extends HasSlice<AT>> extends Accessor<T> {
+export interface AtomicReader<T, AT extends TypedView<AT>> extends Accessor<T> {
     readonly atomicArrayConstructor: AtomicArrayConstructor<AT>;
 }
 export declare const transformed: <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) => Readonly<{
@@ -107,7 +107,7 @@ export declare const array: <T>(type: Accessor<T>, len: number) => Readonly<{
     write: ScalarWriter<T[]>;
     size: number;
 }>;
-export declare const atomic_array: <T extends HasSlice<T>>(type: AtomicReader<any, T>, len: number) => Readonly<{
+export declare const atomic_array: <T extends TypedView<T>>(type: AtomicReader<any, T>, len: number) => Readonly<{
     view: ScalarReader<T>;
     read: ScalarReader<T>;
     write: ScalarWriter<T>;

@@ -227,6 +227,7 @@ function fromSigned(value: number, bits: number) {
 
 type ScalarReader<T> = (v: View, off: number) => T;
 type ScalarWriter<T> = (v: View, off: number, value: T) => void;
+export type HasRaw = { raw(): Uint8Array }
 
 export type Accessor<T> = Readonly<{
   view: ScalarReader<T>;
@@ -389,7 +390,7 @@ class StructBuilder<T extends object> {
       return struct;
     }
     const view = (v: View, off: number) => {
-      return new Proxy({} as Target, {
+      return new Proxy({ raw: v.raw(off, size) } as Target, {
         ownKeys: target => {
           const keys = Reflect.ownKeys(target);
           for (const name of fieldsMap.keys()) {
@@ -436,6 +437,10 @@ class StructBuilder<T extends object> {
     const write = (v: View, off: number, value: T) => this.fields.forEach(([[name, accessor], fieldOff]) => accessor.write(v, off + fieldOff, value[name as keyof T]));
     return { read, view, write, size };
   }
+}
+
+export function asRaw(obj: any): Uint8Array | undefined {
+  return (obj as any).raw
 }
 
 export function isViewable<T extends TypedView<T>>(off: number, ctr: AtomicArrayConstructor<T>): boolean {

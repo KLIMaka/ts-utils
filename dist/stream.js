@@ -334,7 +334,7 @@ class StructBuilder {
             return struct;
         };
         const view = (v, off) => {
-            return new Proxy({}, {
+            return new Proxy({ raw: v.raw(off, size) }, {
                 ownKeys: target => {
                     const keys = Reflect.ownKeys(target);
                     for (const name of fieldsMap.keys()) {
@@ -381,6 +381,9 @@ class StructBuilder {
         const write = (v, off, value) => this.fields.forEach(([[name, accessor], fieldOff]) => accessor.write(v, off + fieldOff, value[name]));
         return { read, view, write, size };
     }
+}
+export function asRaw(obj) {
+    return obj.raw;
 }
 export function isViewable(off, ctr) {
     return off % ctr.BYTES_PER_ELEMENT === 0;

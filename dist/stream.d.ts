@@ -46,6 +46,9 @@ export declare class Stream {
 }
 type ScalarReader<T> = (v: View, off: number) => T;
 type ScalarWriter<T> = (v: View, off: number, value: T) => void;
+export type HasRaw = {
+    raw(): Uint8Array;
+};
 export type Accessor<T> = Readonly<{
     view: ScalarReader<T>;
     read: ScalarReader<T>;
@@ -131,6 +134,7 @@ declare class StructBuilder<T extends object> {
     }>;
     build<Target extends T = T>(): Accessor<Target>;
 }
+export declare function asRaw(obj: any): Uint8Array | undefined;
 export declare function isViewable<T extends TypedView<T>>(off: number, ctr: AtomicArrayConstructor<T>): boolean;
 export declare function tryToViewOrCopy<T extends TypedView<T>>(arr: TypedArray, ctr: AtomicArrayConstructor<T>): T;
 export {};

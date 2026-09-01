@@ -189,11 +189,11 @@ test('clone', () => {
   expect(copy.x).toBe(12);
 
   const copyOfCopy = { ...copy };
-  expect(copyOfCopy).toStrictEqual({ a: 1, b: 2, c: 3, x: 12 });
+  expect(copyOfCopy).toStrictEqual({ a: 1, b: 2, c: 3, x: 12, raw: new Uint8Array([1, 50]) });
 
   view.writeUByte(0, 11);
   const copyOfCopy1 = { ...copy };
-  expect(copyOfCopy1).toStrictEqual({ a: 11, b: 2, c: 3, x: 12 });
+  expect(copyOfCopy1).toStrictEqual({ a: 11, b: 2, c: 3, x: 12, raw: new Uint8Array([11, 50]) });
 })
 
 test('iterable', () => {

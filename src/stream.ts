@@ -93,8 +93,10 @@ export class View {
     this.viewImpl.setFloat32(byteOff, float, this.LE);
   }
 
-  readAtomicArray<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T {
-    return new ctr(this.arr.buffer, this.arr.byteOffset + off, len);
+  readRaw<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T {
+    const [byteOff,] = this.getOff(off);
+    if (toInt(len) !== len) throw new Error(`Invalid size: ${len}`);
+    return new ctr(this.arr.buffer, this.arr.byteOffset + byteOff, len);
   }
 
   writeArray(off: number, arr: Uint8Array): void {
@@ -154,9 +156,10 @@ export class View {
     return acc.view(this, off);
   }
 
-  raw<T>(off: number, acc: Accessor<T>): Uint8Array {
-    return this.readAtomicArray(off, acc.size, Uint8Array);
+  raw<T>(off: number, size: number): Uint8Array {
+    return this.readRaw(off, size, Uint8Array);
   }
+
 
   write<T>(off: number, acc: Accessor<T>, value: T): void {
     acc.write(this, off, value);
@@ -185,11 +188,12 @@ export class Stream {
     this.off += acc.size;
   }
 
-  raw<T>(acc: Accessor<T>): Uint8Array {
-    const raw = this.viewImpl.raw(this.off, acc);
-    this.off += acc.size;
+  raw<T>(size: number): Uint8Array {
+    const raw = this.viewImpl.raw(this.off, size);
+    this.off += size;
     return raw;
   }
+
 
   setOffset(off: number) {
     this.off = off;
@@ -278,11 +282,8 @@ export const builder = () => new StructBuilder();
 type ReadOnlyArray<T> = Omit<T[], 'pop' | 'push' | 'concat' | 'shift' | 'unshift' | 'flatMap' | 'splice' | 'flat' | 'toSpliced' | typeof Symbol.unscopables>;
 
 function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number): ReadOnlyArray<T> {
-  if (accessor instanceof AtomicAccessor) {
-    return v.arr.byteOffset + off % accessor.atomicArrayConstructor.BYTES_PER_ELEMENT === 0
-      ? v.readAtomicArray(off, len, accessor.atomicArrayConstructor).slice()
-      : new accessor.atomicArrayConstructor(v.readAtomicArray(off, len * accessor.atomicArrayConstructor.BYTES_PER_ELEMENT, Uint8Array).slice().buffer, 0, len)
-  }
+  if (accessor instanceof AtomicAccessor)
+    return tryToViewOrCopy(v.readRaw(off, len * accessor.size, Uint8Array), accessor.atomicArrayConstructor)
   let offPtr = off;
   const arr = new Array<T>(len);
   for (let i = 0; i < len; i++) {
@@ -293,8 +294,8 @@ function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number):
 }
 
 function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): ReadOnlyArray<T> {
-  if (type instanceof AtomicAccessor && v.arr.byteOffset + off % type.atomicArrayConstructor.BYTES_PER_ELEMENT === 0)
-    return v.readAtomicArray(off, len, type.atomicArrayConstructor);
+  if (type instanceof AtomicAccessor && isViewable(v.arr.byteOffset + off, type.atomicArrayConstructor))
+    return v.readRaw(off, len, type.atomicArrayConstructor);
   const target = new Array<T>(len);
   const getIndex = (prop: PropertyKey): number | undefined => {
     if (typeof prop !== 'string')
@@ -354,7 +355,7 @@ function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): Rea
 }
 
 function writeArray<T>(v: View, off: number, type: Accessor<T>, len: number, value: ReadOnlyArray<T>): void {
-  if (accessor instanceof AtomicAccessor && (value as any).buffer !== null) {
+  if (accessor instanceof AtomicAccessor && (value as any).buffer !== undefined) {
     const arr = value as any as TypedArray;
     v.writeArray(off, new Uint8Array(arr.buffer, arr.byteOffset, len * arr.BYTES_PER_ELEMENT))
   } else {
@@ -435,5 +436,15 @@ class StructBuilder<T extends object> {
     const write = (v: View, off: number, value: T) => this.fields.forEach(([[name, accessor], fieldOff]) => accessor.write(v, off + fieldOff, value[name as keyof T]));
     return { read, view, write, size };
   }
+}
+
+export function isViewable<T extends TypedView<T>>(off: number, ctr: AtomicArrayConstructor<T>): boolean {
+  return off % ctr.BYTES_PER_ELEMENT === 0;
+}
+
+export function tryToViewOrCopy<T extends TypedView<T>>(arr: TypedArray, ctr: AtomicArrayConstructor<T>): T {
+  return isViewable(arr.byteOffset, ctr)
+    ? new ctr(arr.buffer, arr.byteOffset, arr.byteLength / ctr.BYTES_PER_ELEMENT)
+    : new ctr(arr.slice().buffer, 0, arr.byteLength / ctr.BYTES_PER_ELEMENT);
 }
 

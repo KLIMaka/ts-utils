@@ -75,8 +75,11 @@ export class View {
         const [byteOff] = this.getOff(off);
         this.viewImpl.setFloat32(byteOff, float, this.LE);
     }
-    readAtomicArray(off, len, ctr) {
-        return new ctr(this.arr.buffer, this.arr.byteOffset + off, len);
+    readRaw(off, len, ctr) {
+        const [byteOff,] = this.getOff(off);
+        if (toInt(len) !== len)
+            throw new Error(`Invalid size: ${len}`);
+        return new ctr(this.arr.buffer, this.arr.byteOffset + byteOff, len);
     }
     writeArray(off, arr) {
         const [byteOff] = this.getOff(off);
@@ -134,8 +137,8 @@ export class View {
     view(off, acc) {
         return acc.view(this, off);
     }
-    raw(off, acc) {
-        return this.readAtomicArray(off, acc.size, Uint8Array);
+    raw(off, size) {
+        return this.readRaw(off, size, Uint8Array);
     }
     write(off, acc, value) {
         acc.write(this, off, value);
@@ -161,9 +164,9 @@ export class Stream {
         this.viewImpl.write(this.off, acc, value);
         this.off += acc.size;
     }
-    raw(acc) {
-        const raw = this.viewImpl.raw(this.off, acc);
-        this.off += acc.size;
+    raw(size) {
+        const raw = this.viewImpl.raw(this.off, size);
+        this.off += size;
         return raw;
     }
     setOffset(off) {
@@ -229,11 +232,8 @@ export const bit = transformed(bits_unsigned(1), x => x ? 1 : 0, x => x === 1);
 export const array = (type, len) => viewAccessor((view, off) => readArray(view, off, type, len), (view, off) => viewArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
 export const builder = () => new StructBuilder();
 function readArray(v, off, accessor, len) {
-    if (accessor instanceof AtomicAccessor) {
-        return v.arr.byteOffset + off % accessor.atomicArrayConstructor.BYTES_PER_ELEMENT === 0
-            ? v.readAtomicArray(off, len, accessor.atomicArrayConstructor).slice()
-            : new accessor.atomicArrayConstructor(v.readAtomicArray(off, len * accessor.atomicArrayConstructor.BYTES_PER_ELEMENT, Uint8Array).slice().buffer, 0, len);
-    }
+    if (accessor instanceof AtomicAccessor)
+        return tryToViewOrCopy(v.readRaw(off, len * accessor.size, Uint8Array), accessor.atomicArrayConstructor);
     let offPtr = off;
     const arr = new Array(len);
     for (let i = 0; i < len; i++) {
@@ -243,8 +243,8 @@ function readArray(v, off, accessor, len) {
     return arr;
 }
 function viewArray(v, off, type, len) {
-    if (type instanceof AtomicAccessor && v.arr.byteOffset + off % type.atomicArrayConstructor.BYTES_PER_ELEMENT === 0)
-        return v.readAtomicArray(off, len, type.atomicArrayConstructor);
+    if (type instanceof AtomicAccessor && isViewable(v.arr.byteOffset + off, type.atomicArrayConstructor))
+        return v.readRaw(off, len, type.atomicArrayConstructor);
     const target = new Array(len);
     const getIndex = (prop) => {
         if (typeof prop !== 'string')
@@ -301,7 +301,7 @@ function viewArray(v, off, type, len) {
     });
 }
 function writeArray(v, off, type, len, value) {
-    if (accessor instanceof AtomicAccessor && value.buffer !== null) {
+    if (accessor instanceof AtomicAccessor && value.buffer !== undefined) {
         const arr = value;
         v.writeArray(off, new Uint8Array(arr.buffer, arr.byteOffset, len * arr.BYTES_PER_ELEMENT));
     }
@@ -381,5 +381,13 @@ class StructBuilder {
         const write = (v, off, value) => this.fields.forEach(([[name, accessor], fieldOff]) => accessor.write(v, off + fieldOff, value[name]));
         return { read, view, write, size };
     }
+}
+export function isViewable(off, ctr) {
+    return off % ctr.BYTES_PER_ELEMENT === 0;
+}
+export function tryToViewOrCopy(arr, ctr) {
+    return isViewable(arr.byteOffset, ctr)
+        ? new ctr(arr.buffer, arr.byteOffset, arr.byteLength / ctr.BYTES_PER_ELEMENT)
+        : new ctr(arr.slice().buffer, 0, arr.byteLength / ctr.BYTES_PER_ELEMENT);
 }
 //# sourceMappingURL=stream.js.map

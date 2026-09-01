@@ -1,4 +1,4 @@
-import { Fn } from "./types";
+import { Fn, TypedArray } from "./types";
 export declare class View {
     readonly arr: Uint8Array;
     private LE;
@@ -19,7 +19,7 @@ export declare class View {
     writeUInt(off: number, int: number): void;
     readFloat(off: number): number;
     writeFloat(off: number, float: number): void;
-    readAtomicArray<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T;
+    readRaw<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T;
     writeArray(off: number, arr: Uint8Array): void;
     readByteString(off: number, len: number): string;
     writeByteString(off: number, len: number, str: string): void;
@@ -28,7 +28,7 @@ export declare class View {
     stream(): Stream;
     read<T>(off: number, acc: Accessor<T>): T;
     view<T>(off: number, acc: Accessor<T>): T;
-    raw<T>(off: number, acc: Accessor<T>): Uint8Array;
+    raw<T>(off: number, size: number): Uint8Array;
     write<T>(off: number, acc: Accessor<T>, value: T): void;
 }
 export declare class Stream {
@@ -38,7 +38,7 @@ export declare class Stream {
     read<T>(acc: Accessor<T>): T;
     view<T>(acc: Accessor<T>): T;
     write<T>(acc: Accessor<T>, value: T): void;
-    raw<T>(acc: Accessor<T>): Uint8Array;
+    raw<T>(size: number): Uint8Array;
     setOffset(off: number): void;
     eoi(): boolean;
     skip(off: number): void;
@@ -131,5 +131,7 @@ declare class StructBuilder<T extends object> {
     }>;
     build<Target extends T = T>(): Accessor<Target>;
 }
+export declare function isViewable<T extends TypedView<T>>(off: number, ctr: AtomicArrayConstructor<T>): boolean;
+export declare function tryToViewOrCopy<T extends TypedView<T>>(arr: TypedArray, ctr: AtomicArrayConstructor<T>): T;
 export {};
 //# sourceMappingURL=stream.d.ts.map

@@ -1,5 +1,5 @@
 import { iter } from '../src/iter';
-import { Accessor, AccessorType, array, bit, bits, bits_signed, builder, byte, float, int, short, Stream, string, transformed, ubyte, uint, ushort, View } from '../src/stream';
+import { Accessor, AccessorType, array, bit, bits, bits_signed, builder, byte, float, int, isViewable, short, Stream, string, transformed, tryToViewOrCopy, ubyte, uint, ushort, View } from '../src/stream';
 
 type Test = {
   a: number;
@@ -275,9 +275,21 @@ test('raw', () => {
   };
 
   view.write(0, struct, obj);
-  const raw = view.raw(0, struct);
-  view.raw(struct.size, struct).set(raw);
+  const raw = view.raw(0, struct.size);
+  view.raw(struct.size, struct.size).set(raw);
 
   expect(view.read(struct.size, struct)).toStrictEqual(obj);
-  expect(view.raw(0, struct)).toStrictEqual(view.raw(struct.size, struct));
+  expect(view.raw(0, struct.size)).toStrictEqual(view.raw(struct.size, struct.size));
+})
+
+test('tryToViewOrCopy', () => {
+  const buff = new ArrayBuffer(32);
+  const arr0 = new Uint8Array(buff);
+  const arr1 = new Uint8Array(buff, 1);
+
+  expect(tryToViewOrCopy(arr0, Int16Array).buffer === arr0.buffer).toBeTruthy();
+  expect(tryToViewOrCopy(arr1, Int16Array).buffer !== arr1.buffer).toBeTruthy();
+  expect(isViewable(arr0.byteOffset, Int16Array)).toBeTruthy();
+  expect(isViewable(arr1.byteOffset, Int16Array)).toBeFalsy();
+  expect(isViewable(arr1.byteOffset, Int8Array)).toBeTruthy();
 })

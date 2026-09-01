@@ -2,7 +2,7 @@ import { Fn } from "./types";
 export declare class View {
     readonly arr: Uint8Array;
     private LE;
-    private view;
+    private viewImpl;
     constructor(arr: Uint8Array, LE?: boolean);
     private getOff;
     readByte(off: number): number;
@@ -19,13 +19,17 @@ export declare class View {
     writeUInt(off: number, int: number): void;
     readFloat(off: number): number;
     writeFloat(off: number, float: number): void;
-    readArray<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T;
+    readAtomicArray<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T;
     writeArray(off: number, arr: Uint8Array): void;
     readByteString(off: number, len: number): string;
     writeByteString(off: number, len: number, str: string): void;
     readBits(off: number, bits: number): number;
     writeBits(off: number, bits: number, value: number): void;
     stream(): Stream;
+    read<T>(off: number, acc: Accessor<T>): T;
+    view<T>(off: number, acc: Accessor<T>): T;
+    raw<T>(off: number, acc: Accessor<T>): Uint8Array;
+    write<T>(off: number, acc: Accessor<T>, value: T): void;
 }
 export declare class Stream {
     private viewImpl;
@@ -34,6 +38,7 @@ export declare class Stream {
     read<T>(acc: Accessor<T>): T;
     view<T>(acc: Accessor<T>): T;
     write<T>(acc: Accessor<T>, value: T): void;
+    raw<T>(acc: Accessor<T>): Uint8Array;
     setOffset(off: number): void;
     eoi(): boolean;
     skip(off: number): void;
@@ -52,12 +57,18 @@ type TypedView<T> = {
     buffer: ArrayBuffer;
     byteOffset: number;
     slice(): T;
-};
+} & ArrayLike<number>;
 type AtomicArrayConstructor<T extends TypedView<T>> = {
     new (buffer: ArrayBufferLike, byteOffset: number, length: number): T;
+    readonly BYTES_PER_ELEMENT: number;
 };
-export interface AtomicReader<T, AT extends TypedView<AT>> extends Accessor<T> {
+export declare class AtomicAccessor<T, AT extends TypedView<AT>> implements Accessor<T> {
+    readonly view: ScalarReader<T>;
+    readonly read: ScalarReader<T>;
+    readonly write: ScalarWriter<T>;
+    readonly size: number;
     readonly atomicArrayConstructor: AtomicArrayConstructor<AT>;
+    constructor(view: ScalarReader<T>, read: ScalarReader<T>, write: ScalarWriter<T>, size: number, atomicArrayConstructor: AtomicArrayConstructor<AT>);
 }
 export declare const transformed: <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) => Readonly<{
     view: ScalarReader<Actual>;
@@ -65,13 +76,13 @@ export declare const transformed: <Stored, Actual>(stored: Accessor<Stored>, to:
     write: ScalarWriter<Actual>;
     size: number;
 }>;
-export declare const byte: AtomicReader<number, Int8Array<ArrayBuffer>>;
-export declare const ubyte: AtomicReader<number, Uint8Array<ArrayBuffer>>;
-export declare const short: AtomicReader<number, Int16Array<ArrayBuffer>>;
-export declare const ushort: AtomicReader<number, Uint16Array<ArrayBuffer>>;
-export declare const int: AtomicReader<number, Int32Array<ArrayBuffer>>;
-export declare const uint: AtomicReader<number, Uint32Array<ArrayBuffer>>;
-export declare const float: AtomicReader<number, Float32Array<ArrayBuffer>>;
+export declare const byte: AtomicAccessor<number, Int8Array<ArrayBuffer>>;
+export declare const ubyte: AtomicAccessor<number, Uint8Array<ArrayBuffer>>;
+export declare const short: AtomicAccessor<number, Int16Array<ArrayBuffer>>;
+export declare const ushort: AtomicAccessor<number, Uint16Array<ArrayBuffer>>;
+export declare const int: AtomicAccessor<number, Int32Array<ArrayBuffer>>;
+export declare const uint: AtomicAccessor<number, Uint32Array<ArrayBuffer>>;
+export declare const float: AtomicAccessor<number, Float32Array<ArrayBuffer>>;
 export declare const string: (len: number) => Readonly<{
     view: ScalarReader<string>;
     read: ScalarReader<string>;
@@ -103,18 +114,13 @@ export declare const bit: Readonly<{
     size: number;
 }>;
 export declare const array: <T>(type: Accessor<T>, len: number) => Readonly<{
-    view: ScalarReader<T[]>;
-    read: ScalarReader<T[]>;
-    write: ScalarWriter<T[]>;
-    size: number;
-}>;
-export declare const atomic_array: <T extends TypedView<T>>(type: AtomicReader<any, T>, len: number) => Readonly<{
-    view: ScalarReader<T>;
-    read: ScalarReader<T>;
-    write: ScalarWriter<T>;
+    view: ScalarReader<ReadOnlyArray<T>>;
+    read: ScalarReader<ReadOnlyArray<T>>;
+    write: ScalarWriter<ReadOnlyArray<T>>;
     size: number;
 }>;
 export declare const builder: () => StructBuilder<object>;
+type ReadOnlyArray<T> = Omit<T[], 'pop' | 'push' | 'concat' | 'shift' | 'unshift' | 'flatMap' | 'splice' | 'flat' | 'toSpliced' | typeof Symbol.unscopables>;
 type Field<T, F extends keyof T = any> = [keyof T, Accessor<T[F]>];
 declare class StructBuilder<T extends object> {
     private fields;

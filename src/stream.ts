@@ -1,18 +1,18 @@
 import { iter } from "./iter";
 import { sum, int as toInt } from "./mathutils";
-import { Fn, pair } from "./types";
+import { BiFn, Fn, pair, TypedArray } from "./types";
 
 const DECODER = new TextDecoder();
 const ENCODER = new TextEncoder();
 
 export class View {
-  private view: DataView;
+  private viewImpl: DataView;
 
   constructor(
     readonly arr: Uint8Array,
     private LE = true,
   ) {
-    this.view = new DataView(this.arr.buffer, this.arr.byteOffset, this.arr.byteLength);
+    this.viewImpl = new DataView(this.arr.buffer, this.arr.byteOffset, this.arr.byteLength);
   }
 
   private getOff(off: number, check = true): [number, number] {
@@ -25,75 +25,75 @@ export class View {
 
   readByte(off: number): number {
     const [byteOff] = this.getOff(off);
-    return this.view.getInt8(byteOff);
+    return this.viewImpl.getInt8(byteOff);
   }
 
   writeByte(off: number, byte: number): void {
     const [byteOff] = this.getOff(off);
-    this.view.setInt8(byteOff, byte);
+    this.viewImpl.setInt8(byteOff, byte);
   }
 
   readUByte(off: number): number {
     const [byteOff] = this.getOff(off);
-    return this.view.getUint8(byteOff);
+    return this.viewImpl.getUint8(byteOff);
   }
 
   writeUByte(off: number, byte: number): void {
     const [byteOff] = this.getOff(off);
-    this.view.setUint8(byteOff, byte);
+    this.viewImpl.setUint8(byteOff, byte);
   }
 
   readShort(off: number): number {
     const [byteOff] = this.getOff(off);
-    return this.view.getInt16(byteOff, this.LE);
+    return this.viewImpl.getInt16(byteOff, this.LE);
   }
 
   writeShort(off: number, short: number): void {
     const [byteOff] = this.getOff(off);
-    this.view.setInt16(byteOff, short, this.LE);
+    this.viewImpl.setInt16(byteOff, short, this.LE);
   }
 
   readUShort(off: number): number {
     const [byteOff] = this.getOff(off);
-    return this.view.getUint16(byteOff, this.LE);
+    return this.viewImpl.getUint16(byteOff, this.LE);
   }
 
   writeUShort(off: number, short: number): void {
     const [byteOff] = this.getOff(off);
-    this.view.setUint16(byteOff, short, this.LE);
+    this.viewImpl.setUint16(byteOff, short, this.LE);
   }
 
   readInt(off: number): number {
     const [byteOff] = this.getOff(off);
-    return this.view.getInt32(byteOff, this.LE);
+    return this.viewImpl.getInt32(byteOff, this.LE);
   }
 
   writeInt(off: number, int: number): void {
     const [byteOff] = this.getOff(off);
-    this.view.setInt32(byteOff, int, this.LE);
+    this.viewImpl.setInt32(byteOff, int, this.LE);
   }
 
   readUInt(off: number): number {
     const [byteOff] = this.getOff(off);
-    return this.view.getUint32(byteOff, this.LE);
+    return this.viewImpl.getUint32(byteOff, this.LE);
   }
 
   writeUInt(off: number, int: number): void {
     const [byteOff] = this.getOff(off);
-    this.view.setUint32(byteOff, int, this.LE);
+    this.viewImpl.setUint32(byteOff, int, this.LE);
   }
 
   readFloat(off: number): number {
     const [byteOff] = this.getOff(off);
-    return this.view.getFloat32(byteOff, this.LE);
+    return this.viewImpl.getFloat32(byteOff, this.LE);
   }
 
   writeFloat(off: number, float: number): void {
     const [byteOff] = this.getOff(off);
-    this.view.setFloat32(byteOff, float, this.LE);
+    this.viewImpl.setFloat32(byteOff, float, this.LE);
   }
 
-  readArray<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T {
+  readAtomicArray<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T {
     return new ctr(this.arr.buffer, this.arr.byteOffset + off, len);
   }
 
@@ -117,9 +117,9 @@ export class View {
   readBits(off: number, bits: number): number {
     let value = 0;
     let [byteOff, bitOff] = this.getOff(off, false);
-    let word = this.view.getUint8(byteOff);
+    let word = this.viewImpl.getUint8(byteOff);
     for (let i = 0; i < bits; i++) {
-      if (i !== 0 && bitOff === 0) word = this.view.getUint8(byteOff);
+      if (i !== 0 && bitOff === 0) word = this.viewImpl.getUint8(byteOff);
       const bit = ((word >> bitOff) & 1);
       value |= bit << i;
       bitOff = (bitOff + 1) & 7;
@@ -130,20 +130,36 @@ export class View {
 
   writeBits(off: number, bits: number, value: number): void {
     let [byteOff, bitOff] = this.getOff(off, false);
-    let word = this.view.getUint8(byteOff);
+    let word = this.viewImpl.getUint8(byteOff);
     for (let i = 0; i < bits; i++) {
-      if (i !== 0 && bitOff === 0) word = this.view.getUint8(byteOff);
+      if (i !== 0 && bitOff === 0) word = this.viewImpl.getUint8(byteOff);
       const bit = ((value >> i) & 1) === 1;
       if (bit) word |= (1 << bitOff)
       else word &= (~(1 << bitOff) & 0xffffffff);
       bitOff = (bitOff + 1) & 7;
-      if (bitOff === 0) this.view.setUint8(byteOff++, word);
+      if (bitOff === 0) this.viewImpl.setUint8(byteOff++, word);
     }
-    if (bitOff !== 0) this.view.setUint8(byteOff, word);
+    if (bitOff !== 0) this.viewImpl.setUint8(byteOff, word);
   }
 
   stream(): Stream {
     return new Stream(this);
+  }
+
+  read<T>(off: number, acc: Accessor<T>): T {
+    return acc.read(this, off);
+  }
+
+  view<T>(off: number, acc: Accessor<T>): T {
+    return acc.view(this, off);
+  }
+
+  raw<T>(off: number, acc: Accessor<T>): Uint8Array {
+    return this.readAtomicArray(off, acc.size, Uint8Array);
+  }
+
+  write<T>(off: number, acc: Accessor<T>, value: T): void {
+    acc.write(this, off, value);
   }
 }
 
@@ -159,14 +175,20 @@ export class Stream {
   }
 
   view<T>(acc: Accessor<T>): T {
-    const value = acc.view(this.viewImpl, this.off);
+    const value = this.viewImpl.view(this.off, acc);
     this.off += acc.size;
     return value;
   }
 
   write<T>(acc: Accessor<T>, value: T): void {
-    acc.write(this.viewImpl, this.off, value);
+    this.viewImpl.write(this.off, acc, value)
     this.off += acc.size;
+  }
+
+  raw<T>(acc: Accessor<T>): Uint8Array {
+    const raw = this.viewImpl.raw(this.off, acc);
+    this.off += acc.size;
+    return raw;
   }
 
   setOffset(off: number) {
@@ -211,11 +233,16 @@ export type Accessor<T> = Readonly<{
 
 export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
 
-type TypedView<T> = { buffer: ArrayBuffer, byteOffset: number, slice(): T };
-type AtomicArrayConstructor<T extends TypedView<T>> = { new(buffer: ArrayBufferLike, byteOffset: number, length: number): T };
+type TypedView<T> = { buffer: ArrayBuffer, byteOffset: number, slice(): T } & ArrayLike<number>;
+type AtomicArrayConstructor<T extends TypedView<T>> = { new(buffer: ArrayBufferLike, byteOffset: number, length: number): T, readonly BYTES_PER_ELEMENT: number };
 
-export interface AtomicReader<T, AT extends TypedView<AT>> extends Accessor<T> {
-  readonly atomicArrayConstructor: AtomicArrayConstructor<AT>;
+export class AtomicAccessor<T, AT extends TypedView<AT>> implements Accessor<T> {
+  constructor(
+    readonly view: ScalarReader<T>,
+    readonly read: ScalarReader<T>,
+    readonly write: ScalarWriter<T>,
+    readonly size: number,
+    readonly atomicArrayConstructor: AtomicArrayConstructor<AT>) { }
 }
 
 function accessor<T>(read: ScalarReader<T>, write: ScalarWriter<T>, size: number): Accessor<T> {
@@ -226,8 +253,8 @@ function viewAccessor<T>(read: ScalarReader<T>, view: ScalarReader<T>, write: Sc
   return { read, view, write, size };
 }
 
-function atomicReader<T, AT extends TypedView<AT>>(read: ScalarReader<T>, write: ScalarWriter<T>, size: number, atomicArrayConstructor: AtomicArrayConstructor<AT>): AtomicReader<T, AT> {
-  return { read, view: read, write, size, atomicArrayConstructor };
+function atomicReader<T, AT extends TypedView<AT>>(read: ScalarReader<T>, write: ScalarWriter<T>, size: number, atomicArrayConstructor: AtomicArrayConstructor<AT>): AtomicAccessor<T, AT> {
+  return new AtomicAccessor(read, read, write, size, atomicArrayConstructor);
 }
 
 export const transformed = <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) =>
@@ -246,11 +273,16 @@ export const bits = (len: number) => len < 0 ? bits_signed(-len) : bits_unsigned
 export const bit = transformed<number, boolean>(bits_unsigned(1), x => x ? 1 : 0, x => x === 1);
 export const array = <T>(type: Accessor<T>, len: number) =>
   viewAccessor((view, off) => readArray(view, off, type, len), (view, off) => viewArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
-export const atomic_array = <T extends TypedView<T>>(type: AtomicReader<any, T>, len: number) =>
-  viewAccessor((view, off) => readAtomicArray(view, off, type, len), (view, off) => viewAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
 export const builder = () => new StructBuilder();
 
-function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number): Array<T> {
+type ReadOnlyArray<T> = Omit<T[], 'pop' | 'push' | 'concat' | 'shift' | 'unshift' | 'flatMap' | 'splice' | 'flat' | 'toSpliced' | typeof Symbol.unscopables>;
+
+function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number): ReadOnlyArray<T> {
+  if (accessor instanceof AtomicAccessor) {
+    return v.arr.byteOffset + off % accessor.atomicArrayConstructor.BYTES_PER_ELEMENT === 0
+      ? v.readAtomicArray(off, len, accessor.atomicArrayConstructor).slice()
+      : new accessor.atomicArrayConstructor(v.readAtomicArray(off, len * accessor.atomicArrayConstructor.BYTES_PER_ELEMENT, Uint8Array).slice().buffer, 0, len)
+  }
   let offPtr = off;
   const arr = new Array<T>(len);
   for (let i = 0; i < len; i++) {
@@ -260,7 +292,9 @@ function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number):
   return arr;
 }
 
-function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): Array<T> {
+function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): ReadOnlyArray<T> {
+  if (type instanceof AtomicAccessor && v.arr.byteOffset + off % type.atomicArrayConstructor.BYTES_PER_ELEMENT === 0)
+    return v.readAtomicArray(off, len, type.atomicArrayConstructor);
   const target = new Array<T>(len);
   const getIndex = (prop: PropertyKey): number | undefined => {
     if (typeof prop !== 'string')
@@ -319,23 +353,16 @@ function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): Arr
   });
 }
 
-function writeArray<T>(v: View, off: number, type: Accessor<T>, len: number, value: Array<T>): void {
-  for (let i = 0; i < len; i++) {
-    type.write(v, off, value[i]);
-    off += type.size;
+function writeArray<T>(v: View, off: number, type: Accessor<T>, len: number, value: ReadOnlyArray<T>): void {
+  if (accessor instanceof AtomicAccessor && (value as any).buffer !== null) {
+    const arr = value as any as TypedArray;
+    v.writeArray(off, new Uint8Array(arr.buffer, arr.byteOffset, len * arr.BYTES_PER_ELEMENT))
+  } else {
+    for (let i = 0; i < len; i++) {
+      type.write(v, off, value[i] as T);
+      off += type.size;
+    }
   }
-}
-
-function readAtomicArray<T extends TypedView<T>>(v: View, off: number, type: AtomicReader<any, T>, len: number): T {
-  return viewAtomicArray(v, off, type, len).slice();
-}
-
-function viewAtomicArray<T extends TypedView<T>>(v: View, off: number, type: AtomicReader<any, T>, len: number): T {
-  return v.readArray(off, len, type.atomicArrayConstructor);
-}
-
-function writeAtomicArray<T extends TypedView<T>>(v: View, off: number, type: AtomicReader<any, T>, len: number, value: T) {
-  v.writeArray(off, new Uint8Array(value.buffer, value.byteOffset, len));
 }
 
 type Field<T, F extends keyof T = any> = [keyof T, Accessor<T[F]>];

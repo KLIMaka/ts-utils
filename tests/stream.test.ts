@@ -1,5 +1,5 @@
 import { iter } from '../src/iter';
-import { Accessor, AccessorType, array, atomic_array, bit, bits, bits_signed, builder, byte, float, int, short, Stream, string, transformed, ubyte, uint, ushort, View } from '../src/stream';
+import { Accessor, AccessorType, array, bit, bits, bits_signed, builder, byte, float, int, short, Stream, string, transformed, ubyte, uint, ushort, View } from '../src/stream';
 
 type Test = {
   a: number;
@@ -31,20 +31,29 @@ test('write', () => {
   check(stream, uint, 42);
   check(stream, float, 42);
   check(stream, string(10), "42");
-  check(stream, array(byte, 4), [1, 2, -3, -4]);
-  check(stream, atomic_array(byte, 4), new Int8Array([1, 2, -3, -4]));
+  check(stream, array(byte, 4), new Int8Array([1, 2, -3, -4]) as any as number[]);
+  check(stream, array(short, 4), new Int16Array([1, 2, -3, -4]) as any as number[]);
 
+  stream.setOffset(0);
+  stream.write(array(short, 4), [1, 2, 3, 4]);
+  stream.setOffset(0);
+  expect((stream.view(array(short, 4)) as any as Int16Array).buffer === view.arr.buffer).toBeTruthy();
+
+  stream.setOffset(1);
+  stream.write(array(short, 4), [1, 2, 3, 4]);
+  stream.setOffset(1);
+  expect((stream.view(array(short, 4)) as any as Int16Array).buffer !== view.arr.buffer).toBeTruthy();
 
   stream.setOffset(0);
   const t: Test = { a: 12, b: 4, c: -4 };
-  stream.write(atomic_array(byte, 2), new Int8Array([12, 0b11000100]));
+  stream.write(array(byte, 2), [12, 0b11000100]);
   stream.setOffset(0);
-  expect(stream.read(testStruct)).toMatchObject(t);
+  expect(stream.read(testStruct)).toStrictEqual(t);
 
   stream.setOffset(0);
   stream.write(testStruct, t);
   stream.setOffset(0);
-  expect(stream.read(testStruct)).toMatchObject(t);
+  expect(stream.read(testStruct)).toStrictEqual(t);
 })
 
 test('struct-builder', () => {
@@ -59,7 +68,7 @@ test('struct-builder', () => {
   const view = new View(new Uint8Array(2));
   const stream = view.stream();
   const t: AccessorType<typeof struct> = { a: 12, b: 4, c: -4 };
-  stream.write(atomic_array(byte, 2), new Int8Array([12, 0b11000100]));
+  stream.write(array(byte, 2), [12, 0b11000100]);
   stream.setOffset(0);
   const readed = stream.read(struct);
   expect(readed).toMatchObject(t);
@@ -68,7 +77,7 @@ test('struct-builder', () => {
   stream.setOffset(0);
   stream.write(struct, t);
   stream.setOffset(0);
-  expect(stream.read(atomic_array(byte, 2))).toStrictEqual(new Int8Array([12, 0b11000100]));
+  expect(stream.read(array(byte, 2))).toStrictEqual(new Int8Array([12, -60]) as any as number[]);
 
   const v = struct.view(view, 0);
   v.c = -22;
@@ -104,7 +113,7 @@ test('transformed', () => {
   expect(stream.read(ubyte)).toBe(128);
 
   const arr = tarray.view(view, 0);
-  expect(arr).toMatchObject(['false', 'false', 'false', 'false', 'false', 'false', 'false', 'true']);
+  expect(arr).toStrictEqual(['false', 'false', 'false', 'false', 'false', 'false', 'false', 'true']);
   arr[1] = 'true';
   expect(ubyte.read(view, 0)).toBe(130);
 })
@@ -132,7 +141,7 @@ test('view', () => {
     .field('c', string(8))
     .field('arr', array(builder()
       .field('name', string(2))
-      .field('atoms', atomic_array(byte, 2))
+      .field('atoms', array(byte, 2))
       .field('id', byte)
       .build(), 2))
     .build();
@@ -145,7 +154,7 @@ test('view', () => {
   vstruct.b = true;
   vstruct.rest = 99;
   vstruct.c = 'foo';
-  vstruct.arr[1] = { name: 'az', id: 12, atoms: new Int8Array([1, 2]) }
+  vstruct.arr[1] = { name: 'az', id: 12, atoms: [1, 2] }
 
   vstruct = struct.view(view, struct.size);
   vstruct.a = 42;
@@ -223,7 +232,7 @@ test('array view supports standard iteration methods', () => {
   arrayView.forEach(value => visited.push(value));
 
   expect(visited).toStrictEqual([1, 2, 3, 4]);
-  expect(arrayView.map(value => value * 2)).toStrictEqual([2, 4, 6, 8]);
+  expect(arrayView.map(value => value * 2)).toStrictEqual(new Int8Array([2, 4, 6, 8]));
 })
 
 test('single buffer', () => {
@@ -239,4 +248,36 @@ test('single buffer', () => {
 
   v2.writeByteString(0, 3, 'zz');
   expect(v1.readByteString(0, 32)).toBe('fozz');
+})
+
+test('raw', () => {
+  const struct = builder()
+    .field('a', float)
+    .field('b', string(8))
+    .field('c', array(builder()
+      .field('name', string(4))
+      .field('id', ushort)
+      .field('flag1', bit)
+      .field('flag2', bit)
+      .field('flag3', bit)
+      .field('padd', bits(5))
+      .build(), 2))
+    .build();
+
+  const view = new View(new Uint8Array(struct.size * 2));
+  const obj = {
+    a: 11.25,
+    b: "foobar",
+    c: [
+      { name: 'n1', id: 42, flag1: true, flag2: false, flag3: true, padd: 0 },
+      { name: 'n2', id: 12, flag1: false, flag2: true, flag3: true, padd: 0 },
+    ]
+  };
+
+  view.write(0, struct, obj);
+  const raw = view.raw(0, struct);
+  view.raw(struct.size, struct).set(raw);
+
+  expect(view.read(struct.size, struct)).toStrictEqual(obj);
+  expect(view.raw(0, struct)).toStrictEqual(view.raw(struct.size, struct));
 })

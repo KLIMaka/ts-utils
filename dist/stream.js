@@ -6,11 +6,11 @@ const ENCODER = new TextEncoder();
 export class View {
     arr;
     LE;
-    view;
+    viewImpl;
     constructor(arr, LE = true) {
         this.arr = arr;
         this.LE = LE;
-        this.view = new DataView(this.arr.buffer, this.arr.byteOffset, this.arr.byteLength);
+        this.viewImpl = new DataView(this.arr.buffer, this.arr.byteOffset, this.arr.byteLength);
     }
     getOff(off, check = true) {
         const byte = toInt(off);
@@ -21,61 +21,61 @@ export class View {
     }
     readByte(off) {
         const [byteOff] = this.getOff(off);
-        return this.view.getInt8(byteOff);
+        return this.viewImpl.getInt8(byteOff);
     }
     writeByte(off, byte) {
         const [byteOff] = this.getOff(off);
-        this.view.setInt8(byteOff, byte);
+        this.viewImpl.setInt8(byteOff, byte);
     }
     readUByte(off) {
         const [byteOff] = this.getOff(off);
-        return this.view.getUint8(byteOff);
+        return this.viewImpl.getUint8(byteOff);
     }
     writeUByte(off, byte) {
         const [byteOff] = this.getOff(off);
-        this.view.setUint8(byteOff, byte);
+        this.viewImpl.setUint8(byteOff, byte);
     }
     readShort(off) {
         const [byteOff] = this.getOff(off);
-        return this.view.getInt16(byteOff, this.LE);
+        return this.viewImpl.getInt16(byteOff, this.LE);
     }
     writeShort(off, short) {
         const [byteOff] = this.getOff(off);
-        this.view.setInt16(byteOff, short, this.LE);
+        this.viewImpl.setInt16(byteOff, short, this.LE);
     }
     readUShort(off) {
         const [byteOff] = this.getOff(off);
-        return this.view.getUint16(byteOff, this.LE);
+        return this.viewImpl.getUint16(byteOff, this.LE);
     }
     writeUShort(off, short) {
         const [byteOff] = this.getOff(off);
-        this.view.setUint16(byteOff, short, this.LE);
+        this.viewImpl.setUint16(byteOff, short, this.LE);
     }
     readInt(off) {
         const [byteOff] = this.getOff(off);
-        return this.view.getInt32(byteOff, this.LE);
+        return this.viewImpl.getInt32(byteOff, this.LE);
     }
     writeInt(off, int) {
         const [byteOff] = this.getOff(off);
-        this.view.setInt32(byteOff, int, this.LE);
+        this.viewImpl.setInt32(byteOff, int, this.LE);
     }
     readUInt(off) {
         const [byteOff] = this.getOff(off);
-        return this.view.getUint32(byteOff, this.LE);
+        return this.viewImpl.getUint32(byteOff, this.LE);
     }
     writeUInt(off, int) {
         const [byteOff] = this.getOff(off);
-        this.view.setUint32(byteOff, int, this.LE);
+        this.viewImpl.setUint32(byteOff, int, this.LE);
     }
     readFloat(off) {
         const [byteOff] = this.getOff(off);
-        return this.view.getFloat32(byteOff, this.LE);
+        return this.viewImpl.getFloat32(byteOff, this.LE);
     }
     writeFloat(off, float) {
         const [byteOff] = this.getOff(off);
-        this.view.setFloat32(byteOff, float, this.LE);
+        this.viewImpl.setFloat32(byteOff, float, this.LE);
     }
-    readArray(off, len, ctr) {
+    readAtomicArray(off, len, ctr) {
         return new ctr(this.arr.buffer, this.arr.byteOffset + off, len);
     }
     writeArray(off, arr) {
@@ -95,10 +95,10 @@ export class View {
     readBits(off, bits) {
         let value = 0;
         let [byteOff, bitOff] = this.getOff(off, false);
-        let word = this.view.getUint8(byteOff);
+        let word = this.viewImpl.getUint8(byteOff);
         for (let i = 0; i < bits; i++) {
             if (i !== 0 && bitOff === 0)
-                word = this.view.getUint8(byteOff);
+                word = this.viewImpl.getUint8(byteOff);
             const bit = ((word >> bitOff) & 1);
             value |= bit << i;
             bitOff = (bitOff + 1) & 7;
@@ -109,10 +109,10 @@ export class View {
     }
     writeBits(off, bits, value) {
         let [byteOff, bitOff] = this.getOff(off, false);
-        let word = this.view.getUint8(byteOff);
+        let word = this.viewImpl.getUint8(byteOff);
         for (let i = 0; i < bits; i++) {
             if (i !== 0 && bitOff === 0)
-                word = this.view.getUint8(byteOff);
+                word = this.viewImpl.getUint8(byteOff);
             const bit = ((value >> i) & 1) === 1;
             if (bit)
                 word |= (1 << bitOff);
@@ -120,13 +120,25 @@ export class View {
                 word &= (~(1 << bitOff) & 0xffffffff);
             bitOff = (bitOff + 1) & 7;
             if (bitOff === 0)
-                this.view.setUint8(byteOff++, word);
+                this.viewImpl.setUint8(byteOff++, word);
         }
         if (bitOff !== 0)
-            this.view.setUint8(byteOff, word);
+            this.viewImpl.setUint8(byteOff, word);
     }
     stream() {
         return new Stream(this);
+    }
+    read(off, acc) {
+        return acc.read(this, off);
+    }
+    view(off, acc) {
+        return acc.view(this, off);
+    }
+    raw(off, acc) {
+        return this.readAtomicArray(off, acc.size, Uint8Array);
+    }
+    write(off, acc, value) {
+        acc.write(this, off, value);
     }
 }
 export class Stream {
@@ -141,13 +153,18 @@ export class Stream {
         return value;
     }
     view(acc) {
-        const value = acc.view(this.viewImpl, this.off);
+        const value = this.viewImpl.view(this.off, acc);
         this.off += acc.size;
         return value;
     }
     write(acc, value) {
-        acc.write(this.viewImpl, this.off, value);
+        this.viewImpl.write(this.off, acc, value);
         this.off += acc.size;
+    }
+    raw(acc) {
+        const raw = this.viewImpl.raw(this.off, acc);
+        this.off += acc.size;
+        return raw;
     }
     setOffset(off) {
         this.off = off;
@@ -173,6 +190,20 @@ function fromSigned(value, bits) {
         ? value & mask
         : (~(-value) & mask) + 1;
 }
+export class AtomicAccessor {
+    view;
+    read;
+    write;
+    size;
+    atomicArrayConstructor;
+    constructor(view, read, write, size, atomicArrayConstructor) {
+        this.view = view;
+        this.read = read;
+        this.write = write;
+        this.size = size;
+        this.atomicArrayConstructor = atomicArrayConstructor;
+    }
+}
 function accessor(read, write, size) {
     return { read, view: read, write, size };
 }
@@ -180,7 +211,7 @@ function viewAccessor(read, view, write, size) {
     return { read, view, write, size };
 }
 function atomicReader(read, write, size, atomicArrayConstructor) {
-    return { read, view: read, write, size, atomicArrayConstructor };
+    return new AtomicAccessor(read, read, write, size, atomicArrayConstructor);
 }
 export const transformed = (stored, to, from) => accessor((view, off) => from(stored.read(view, off)), (view, off, v) => stored.write(view, off, to(v)), stored.size);
 export const byte = atomicReader((v, off) => v.readByte(off), (view, off, v) => view.writeByte(off, v), 1, Int8Array);
@@ -196,9 +227,13 @@ export const bits_signed = (len) => transformed(bits_unsigned(len), x => fromSig
 export const bits = (len) => len < 0 ? bits_signed(-len) : bits_unsigned(len);
 export const bit = transformed(bits_unsigned(1), x => x ? 1 : 0, x => x === 1);
 export const array = (type, len) => viewAccessor((view, off) => readArray(view, off, type, len), (view, off) => viewArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
-export const atomic_array = (type, len) => viewAccessor((view, off) => readAtomicArray(view, off, type, len), (view, off) => viewAtomicArray(view, off, type, len), (view, off, v) => writeAtomicArray(view, off, type, len, v), type.size * len);
 export const builder = () => new StructBuilder();
 function readArray(v, off, accessor, len) {
+    if (accessor instanceof AtomicAccessor) {
+        return v.arr.byteOffset + off % accessor.atomicArrayConstructor.BYTES_PER_ELEMENT === 0
+            ? v.readAtomicArray(off, len, accessor.atomicArrayConstructor).slice()
+            : new accessor.atomicArrayConstructor(v.readAtomicArray(off, len * accessor.atomicArrayConstructor.BYTES_PER_ELEMENT, Uint8Array).slice().buffer, 0, len);
+    }
     let offPtr = off;
     const arr = new Array(len);
     for (let i = 0; i < len; i++) {
@@ -208,6 +243,8 @@ function readArray(v, off, accessor, len) {
     return arr;
 }
 function viewArray(v, off, type, len) {
+    if (type instanceof AtomicAccessor && v.arr.byteOffset + off % type.atomicArrayConstructor.BYTES_PER_ELEMENT === 0)
+        return v.readAtomicArray(off, len, type.atomicArrayConstructor);
     const target = new Array(len);
     const getIndex = (prop) => {
         if (typeof prop !== 'string')
@@ -264,19 +301,16 @@ function viewArray(v, off, type, len) {
     });
 }
 function writeArray(v, off, type, len, value) {
-    for (let i = 0; i < len; i++) {
-        type.write(v, off, value[i]);
-        off += type.size;
+    if (accessor instanceof AtomicAccessor && value.buffer !== null) {
+        const arr = value;
+        v.writeArray(off, new Uint8Array(arr.buffer, arr.byteOffset, len * arr.BYTES_PER_ELEMENT));
     }
-}
-function readAtomicArray(v, off, type, len) {
-    return viewAtomicArray(v, off, type, len).slice();
-}
-function viewAtomicArray(v, off, type, len) {
-    return v.readArray(off, len, type.atomicArrayConstructor);
-}
-function writeAtomicArray(v, off, type, len, value) {
-    v.writeArray(off, new Uint8Array(value.buffer, value.byteOffset, len));
+    else {
+        for (let i = 0; i < len; i++) {
+            type.write(v, off, value[i]);
+            off += type.size;
+        }
+    }
 }
 class StructBuilder {
     fields;

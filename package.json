@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "TypeScript utils",
   "scripts": {
-    "build": "tsc",
+    "compile": "tsc",
     "test": "jest"
   },
   "exports": {

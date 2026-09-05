@@ -1,5 +1,5 @@
 import { iter } from '../src/iter';
-import { Accessor, AccessorType, array, bit, bits, bits_signed, builder, byte, float, int, isViewable, short, Stream, string, transformed, tryToViewOrCopy, ubyte, uint, ushort, View } from '../src/stream';
+import { Accessor, AccessorType, array, bit, bits, bits_signed, builder, byte, float, int, isViewable, short, Stream, string, transformed, tryToViewOrCopy, ubyte, uint, ushort, value, View } from '../src/stream';
 
 type Test = {
   a: number;
@@ -180,8 +180,7 @@ test('clone', () => {
     .field('c', bits_signed(4))
     .build<T1>();
 
-  const tt = { a: 1, b: 2, c: 3, x: 42 };
-  testStruct.write(view, 0, tt);
+  testStruct.write(view, 0, { a: 1, b: 2, c: 3 });
 
   const copy = struct.view(view, 0);
   copy.x = 12;
@@ -292,4 +291,13 @@ test('tryToViewOrCopy', () => {
   expect(isViewable(arr0.byteOffset, Int16Array)).toBeTruthy();
   expect(isViewable(arr1.byteOffset, Int16Array)).toBeFalsy();
   expect(isViewable(arr1.byteOffset, Int8Array)).toBeTruthy();
+})
+
+test('value', () => {
+  const view = new View(new Uint8Array(32));
+  const holder = value(byte).view(view, 0);
+
+  holder.value = 42;
+  expect(holder.value).toBe(42);
+  expect(view.arr[0]).toBe(42);
 })

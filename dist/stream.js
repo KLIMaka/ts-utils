@@ -198,25 +198,25 @@ export class AtomicAccessor {
     read;
     write;
     size;
-    atomicArrayConstructor;
-    constructor(view, read, write, size, atomicArrayConstructor) {
+    typedArrayCtor;
+    constructor(view, read, write, size, typedArrayCtor) {
         this.view = view;
         this.read = read;
         this.write = write;
         this.size = size;
-        this.atomicArrayConstructor = atomicArrayConstructor;
+        this.typedArrayCtor = typedArrayCtor;
     }
 }
 function accessor(read, write, size) {
-    return { read, view: read, write, size };
+    return { read, view: (v, off) => read(v, off), write, size };
 }
 function viewAccessor(read, view, write, size) {
     return { read, view, write, size };
 }
-function atomicReader(read, write, size, atomicArrayConstructor) {
-    return new AtomicAccessor(read, read, write, size, atomicArrayConstructor);
+function atomicReader(read, write, size, typedArrayCtor) {
+    return new AtomicAccessor((v, off) => read(v, off), read, write, size, typedArrayCtor);
 }
-export const transformed = (stored, to, from) => accessor((view, off) => from(stored.read(view, off)), (view, off, v) => stored.write(view, off, to(v)), stored.size);
+export const transformed = (stored, toStored, fromStored) => accessor((view, off) => fromStored(stored.read(view, off)), (view, off, v) => stored.write(view, off, toStored(v)), stored.size);
 export const byte = atomicReader((v, off) => v.readByte(off), (view, off, v) => view.writeByte(off, v), 1, Int8Array);
 export const ubyte = atomicReader((v, off) => v.readUByte(off), (view, off, v) => view.writeUByte(off, v), 1, Uint8Array);
 export const short = atomicReader((view, off) => view.readShort(off), (view, off, v) => view.writeShort(off, v), 2, Int16Array);
@@ -231,9 +231,10 @@ export const bits = (len) => len < 0 ? bits_signed(-len) : bits_unsigned(len);
 export const bit = transformed(bits_unsigned(1), x => x ? 1 : 0, x => x === 1);
 export const array = (type, len) => viewAccessor((view, off) => readArray(view, off, type, len), (view, off) => viewArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
 export const builder = () => new StructBuilder();
+export const value = (type) => builder().field('value', type).build();
 function readArray(v, off, accessor, len) {
     if (accessor instanceof AtomicAccessor)
-        return tryToViewOrCopy(v.readRaw(off, len * accessor.size, Uint8Array), accessor.atomicArrayConstructor);
+        return tryToViewOrCopy(v.readRaw(off, len * accessor.size, Uint8Array), accessor.typedArrayCtor);
     let offPtr = off;
     const arr = new Array(len);
     for (let i = 0; i < len; i++) {
@@ -243,8 +244,8 @@ function readArray(v, off, accessor, len) {
     return arr;
 }
 function viewArray(v, off, type, len) {
-    if (type instanceof AtomicAccessor && isViewable(v.arr.byteOffset + off, type.atomicArrayConstructor))
-        return v.readRaw(off, len, type.atomicArrayConstructor);
+    if (type instanceof AtomicAccessor && isViewable(v.arr.byteOffset + off, type.typedArrayCtor))
+        return v.readRaw(off, len, type.typedArrayCtor);
     const target = new Array(len);
     const getIndex = (prop) => {
         if (typeof prop !== 'string')
@@ -255,16 +256,12 @@ function viewArray(v, off, type, len) {
             : undefined;
     };
     return new Proxy(target, {
-        has: (target, prop) => {
-            const index = getIndex(prop);
-            return index !== undefined || Reflect.has(target, prop);
-        },
+        has: (target, prop) => { return getIndex(prop) !== undefined || Reflect.has(target, prop); },
         ownKeys: target => {
             const keys = Array.from({ length: len }, (_, index) => String(index));
-            for (const key of Reflect.ownKeys(target)) {
+            for (const key of Reflect.ownKeys(target))
                 if (!keys.includes(key))
                     keys.push(key);
-            }
             return keys;
         },
         getOwnPropertyDescriptor: (target, prop) => {
@@ -285,9 +282,9 @@ function viewArray(v, off, type, len) {
             if (prop === 'length')
                 return len;
             const index = getIndex(prop);
-            if (index !== undefined)
-                return type.view(v, off + index * type.size);
-            return Reflect.get(target, prop, receiver);
+            return (index !== undefined)
+                ? type.view(v, off + index * type.size)
+                : Reflect.get(target, prop, receiver);
         },
         set: (target, prop, newValue, receiver) => {
             if (typeof prop === 'string') {

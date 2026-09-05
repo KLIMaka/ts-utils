@@ -1,6 +1,6 @@
 import { iter } from "./iter";
 import { sum, int as toInt } from "./mathutils";
-import { BiFn, Fn, pair, TypedArray } from "./types";
+import { Fn, pair, TypedArray } from "./types";
 
 const DECODER = new TextDecoder();
 const ENCODER = new TextEncoder();
@@ -93,10 +93,10 @@ export class View {
     this.viewImpl.setFloat32(byteOff, float, this.LE);
   }
 
-  readRaw<T extends TypedView<T>>(off: number, len: number, ctr: AtomicArrayConstructor<T>): T {
+  readRaw<T extends TypedArray>(off: number, len: number, ctr: TypedArrayConstructor<T>): T {
     const [byteOff,] = this.getOff(off);
     if (toInt(len) !== len) throw new Error(`Invalid size: ${len}`);
-    return new ctr(this.arr.buffer, this.arr.byteOffset + byteOff, len);
+    return new ctr(this.arr.buffer as ArrayBuffer, this.arr.byteOffset + byteOff, len) as T;
   }
 
   writeArray(off: number, arr: Uint8Array): void {
@@ -148,20 +148,19 @@ export class View {
     return new Stream(this);
   }
 
-  read<T>(off: number, acc: Accessor<T>): T {
+  read<T>(off: number, acc: Accessor<T>): Immutable<T> {
     return acc.read(this, off);
   }
 
-  view<T>(off: number, acc: Accessor<T>): T {
+  view<T>(off: number, acc: Accessor<T>): Mutable<T> {
     return acc.view(this, off);
   }
 
-  raw<T>(off: number, size: number): Uint8Array {
+  raw(off: number, size: number): Uint8Array {
     return this.readRaw(off, size, Uint8Array);
   }
 
-
-  write<T>(off: number, acc: Accessor<T>, value: T): void {
+  write<T, V extends T>(off: number, acc: Accessor<T>, value: V): void {
     acc.write(this, off, value);
   }
 }
@@ -171,19 +170,19 @@ export class Stream {
 
   constructor(private viewImpl: View) { }
 
-  read<T>(acc: Accessor<T>): T {
+  read<T>(acc: Accessor<T>): Immutable<T> {
     const value = acc.read(this.viewImpl, this.off);
     this.off += acc.size;
     return value;
   }
 
-  view<T>(acc: Accessor<T>): T {
+  view<T>(acc: Accessor<T>): Mutable<T> {
     const value = this.viewImpl.view(this.off, acc);
     this.off += acc.size;
     return value;
   }
 
-  write<T>(acc: Accessor<T>, value: T): void {
+  write<T, V extends T>(acc: Accessor<T>, value: V): void {
     this.viewImpl.write(this.off, acc, value)
     this.off += acc.size;
   }
@@ -225,68 +224,70 @@ function fromSigned(value: number, bits: number) {
     : (~(-value) & mask) + 1;
 }
 
-type ScalarReader<T> = (v: View, off: number) => T;
-type ScalarWriter<T> = (v: View, off: number, value: T) => void;
-export type HasRaw = { raw(): Uint8Array }
+type PrimitiveType = number | string | boolean;
+export type Mutable<T> = T extends PrimitiveType ? T : T extends object ? { -readonly [K in keyof T]: T[K] } : T;
+export type Immutable<T> = T extends PrimitiveType ? T : T extends object ? { readonly [K in keyof T]: Immutable<T[K]> } : T;
+
+export type Reader<T> = (v: View, off: number) => Immutable<T>;
+export type Viewer<T> = (v: View, off: number) => Mutable<T>;
+export type Writer<T> = <V extends T>(v: View, off: number, value: V) => void;
 
 export type Accessor<T> = Readonly<{
-  view: ScalarReader<T>;
-  read: ScalarReader<T>;
-  write: ScalarWriter<T>;
+  view: Viewer<T>;
+  read: Reader<T>;
+  write: Writer<T>;
   size: number;
 }>
 
 export type AccessorType<T> = T extends Accessor<infer T1> ? T1 : never;
 
-type TypedView<T> = { buffer: ArrayBuffer, byteOffset: number, slice(): T } & ArrayLike<number>;
-type AtomicArrayConstructor<T extends TypedView<T>> = { new(buffer: ArrayBufferLike, byteOffset: number, length: number): T, readonly BYTES_PER_ELEMENT: number };
+type TypedArrayConstructor<T extends TypedArray> = { new(buffer: ArrayBufferLike, byteOffset: number, length: number): T, readonly BYTES_PER_ELEMENT: number };
 
-export class AtomicAccessor<T, AT extends TypedView<AT>> implements Accessor<T> {
+export class AtomicAccessor<T, AT extends TypedArray> implements Accessor<T> {
   constructor(
-    readonly view: ScalarReader<T>,
-    readonly read: ScalarReader<T>,
-    readonly write: ScalarWriter<T>,
+    readonly view: Viewer<T>,
+    readonly read: Reader<T>,
+    readonly write: Writer<T>,
     readonly size: number,
-    readonly atomicArrayConstructor: AtomicArrayConstructor<AT>) { }
+    readonly typedArrayCtor: TypedArrayConstructor<AT>) { }
 }
 
-function accessor<T>(read: ScalarReader<T>, write: ScalarWriter<T>, size: number): Accessor<T> {
-  return { read, view: read, write, size };
+function accessor<T>(read: Reader<T>, write: Writer<T>, size: number): Accessor<T> {
+  return { read, view: (v, off) => read(v, off) as Mutable<T>, write, size };
 }
 
-function viewAccessor<T>(read: ScalarReader<T>, view: ScalarReader<T>, write: ScalarWriter<T>, size: number): Accessor<T> {
+function viewAccessor<T>(read: Reader<T>, view: Viewer<T>, write: Writer<T>, size: number): Accessor<T> {
   return { read, view, write, size };
 }
 
-function atomicReader<T, AT extends TypedView<AT>>(read: ScalarReader<T>, write: ScalarWriter<T>, size: number, atomicArrayConstructor: AtomicArrayConstructor<AT>): AtomicAccessor<T, AT> {
-  return new AtomicAccessor(read, read, write, size, atomicArrayConstructor);
+function atomicReader<T, AT extends TypedArray>(read: Reader<T>, write: Writer<T>, size: number, typedArrayCtor: TypedArrayConstructor<AT>): AtomicAccessor<T, AT> {
+  return new AtomicAccessor((v, off) => read(v, off) as Mutable<T>, read, write, size, typedArrayCtor);
 }
 
-export const transformed = <Stored, Actual>(stored: Accessor<Stored>, to: Fn<Actual, Stored>, from: Fn<Stored, Actual>) =>
-  accessor((view, off) => from(stored.read(view, off)), (view, off, v) => stored.write(view, off, to(v)), stored.size);
-export const byte = atomicReader<number, Int8Array<ArrayBuffer>>((v, off) => v.readByte(off), (view, off, v) => view.writeByte(off, v), 1, Int8Array);
-export const ubyte = atomicReader<number, Uint8Array<ArrayBuffer>>((v, off) => v.readUByte(off), (view, off, v) => view.writeUByte(off, v), 1, Uint8Array);
-export const short = atomicReader<number, Int16Array<ArrayBuffer>>((view, off) => view.readShort(off), (view, off, v) => view.writeShort(off, v), 2, Int16Array);
-export const ushort = atomicReader<number, Uint16Array<ArrayBuffer>>((view, off) => view.readUShort(off), (view, off, v) => view.writeUShort(off, v), 2, Uint16Array);
-export const int = atomicReader<number, Int32Array<ArrayBuffer>>((view, off) => view.readInt(off), (view, off, v) => view.writeInt(off, v), 4, Int32Array);
-export const uint = atomicReader<number, Uint32Array<ArrayBuffer>>((view, off) => view.readUInt(off), (view, off, v) => view.writeUInt(off, v), 4, Uint32Array);
-export const float = atomicReader<number, Float32Array<ArrayBuffer>>((view, off) => view.readFloat(off), (view, off, v) => view.writeFloat(off, v), 4, Float32Array);
+export const transformed = <Stored, Actual>(stored: Accessor<Stored>, toStored: Fn<Actual, Stored>, fromStored: Fn<Immutable<Stored>, Immutable<Actual>>) =>
+  accessor((view, off) => fromStored(stored.read(view, off)), (view, off, v) => stored.write(view, off, toStored(v)), stored.size);
+export const byte = atomicReader<number, Int8Array>((v, off) => v.readByte(off), (view, off, v) => view.writeByte(off, v), 1, Int8Array);
+export const ubyte = atomicReader<number, Uint8Array>((v, off) => v.readUByte(off), (view, off, v) => view.writeUByte(off, v), 1, Uint8Array);
+export const short = atomicReader<number, Int16Array>((view, off) => view.readShort(off), (view, off, v) => view.writeShort(off, v), 2, Int16Array);
+export const ushort = atomicReader<number, Uint16Array>((view, off) => view.readUShort(off), (view, off, v) => view.writeUShort(off, v), 2, Uint16Array);
+export const int = atomicReader<number, Int32Array>((view, off) => view.readInt(off), (view, off, v) => view.writeInt(off, v), 4, Int32Array);
+export const uint = atomicReader<number, Uint32Array>((view, off) => view.readUInt(off), (view, off, v) => view.writeUInt(off, v), 4, Uint32Array);
+export const float = atomicReader<number, Float32Array>((view, off) => view.readFloat(off), (view, off, v) => view.writeFloat(off, v), 4, Float32Array);
 export const string = (len: number) => accessor((view, off) => view.readByteString(off, len), (view, off, v) => view.writeByteString(off, len, v), len);
 export const bits_unsigned = (len: number) => accessor((view, off) => view.readBits(off, len), (view, off, v) => view.writeBits(off, len, v), len / 8);
 export const bits_signed = (len: number) => transformed<number, number>(bits_unsigned(len), x => fromSigned(x, len), x => toSigned(x, len));
 export const bits = (len: number) => len < 0 ? bits_signed(-len) : bits_unsigned(len);
 export const bit = transformed<number, boolean>(bits_unsigned(1), x => x ? 1 : 0, x => x === 1);
 export const array = <T>(type: Accessor<T>, len: number) =>
-  viewAccessor((view, off) => readArray(view, off, type, len), (view, off) => viewArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
+  viewAccessor<T[]>((view, off) => readArray(view, off, type, len), (view, off) => viewArray(view, off, type, len), (view, off, v) => writeArray(view, off, type, len, v), type.size * len);
 export const builder = () => new StructBuilder();
+export const value = <T>(type: Accessor<T>) => builder().field('value', type).build();
 
-type ReadOnlyArray<T> = Omit<T[], 'pop' | 'push' | 'concat' | 'shift' | 'unshift' | 'flatMap' | 'splice' | 'flat' | 'toSpliced' | typeof Symbol.unscopables>;
-
-function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number): ReadOnlyArray<T> {
+function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number): ReadonlyArray<Immutable<T>> {
   if (accessor instanceof AtomicAccessor)
-    return tryToViewOrCopy(v.readRaw(off, len * accessor.size, Uint8Array), accessor.atomicArrayConstructor)
+    return tryToViewOrCopy(v.readRaw(off, len * accessor.size, Uint8Array), accessor.typedArrayCtor) as any as ReadonlyArray<Immutable<T>>
   let offPtr = off;
-  const arr = new Array<T>(len);
+  const arr = new Array<Immutable<T>>(len);
   for (let i = 0; i < len; i++) {
     arr[i] = accessor.read(v, offPtr);
     offPtr += accessor.size;
@@ -294,39 +295,31 @@ function readArray<T>(v: View, off: number, accessor: Accessor<T>, len: number):
   return arr;
 }
 
-function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): ReadOnlyArray<T> {
-  if (type instanceof AtomicAccessor && isViewable(v.arr.byteOffset + off, type.atomicArrayConstructor))
-    return v.readRaw(off, len, type.atomicArrayConstructor);
-  const target = new Array<T>(len);
+function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): Mutable<T>[] {
+  if (type instanceof AtomicAccessor && isViewable(v.arr.byteOffset + off, type.typedArrayCtor))
+    return v.readRaw(off, len, type.typedArrayCtor) as any as Mutable<T>[];
+  const target = new Array<Mutable<T>>(len);
   const getIndex = (prop: PropertyKey): number | undefined => {
-    if (typeof prop !== 'string')
-      return undefined;
+    if (typeof prop !== 'string') return undefined;
     const index = Number(prop);
     return Number.isInteger(index) && index >= 0 && index < len && String(index) === prop
       ? index
       : undefined;
   };
   return new Proxy(target, {
-    has: (target, prop) => {
-      const index = getIndex(prop);
-      return index !== undefined || Reflect.has(target, prop);
-    },
+    has: (target, prop) => { return getIndex(prop) !== undefined || Reflect.has(target, prop) },
     ownKeys: target => {
       const keys: (string | symbol)[] = Array.from({ length: len }, (_, index) => String(index));
-      for (const key of Reflect.ownKeys(target)) {
+      for (const key of Reflect.ownKeys(target))
         if (!keys.includes(key))
           keys.push(key);
-      }
       return keys;
     },
     getOwnPropertyDescriptor: (target, prop) => {
       const descriptor = Reflect.getOwnPropertyDescriptor(target, prop);
-      if (descriptor !== undefined)
-        return descriptor;
-
+      if (descriptor !== undefined) return descriptor;
       const index = getIndex(prop);
-      if (index === undefined)
-        return undefined;
+      if (index === undefined) return undefined;
 
       return {
         configurable: true,
@@ -336,18 +329,16 @@ function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): Rea
       };
     },
     get: (target, prop, receiver) => {
-      if (prop === 'length')
-        return len;
+      if (prop === 'length') return len;
       const index = getIndex(prop);
-      if (index !== undefined)
-        return type.view(v, off + index * type.size);
-      return Reflect.get(target, prop, receiver);
+      return (index !== undefined)
+        ? type.view(v, off + index * type.size)
+        : Reflect.get(target, prop, receiver);
     },
     set: (target, prop, newValue, receiver): boolean => {
       if (typeof prop === 'string') {
         const index = getIndex(prop);
-        if (index !== undefined)
-          type.write(v, off + index * type.size, newValue);
+        if (index !== undefined) type.write(v, off + index * type.size, newValue);
         return true;
       }
       return Reflect.set(target, prop, newValue, receiver);
@@ -355,7 +346,7 @@ function viewArray<T>(v: View, off: number, type: Accessor<T>, len: number): Rea
   });
 }
 
-function writeArray<T>(v: View, off: number, type: Accessor<T>, len: number, value: ReadOnlyArray<T>): void {
+function writeArray<T>(v: View, off: number, type: Accessor<T>, len: number, value: ReadonlyArray<T>): void {
   if (accessor instanceof AtomicAccessor && (value as any).buffer !== undefined) {
     const arr = value as any as TypedArray;
     v.writeArray(off, new Uint8Array(arr.buffer, arr.byteOffset, len * arr.BYTES_PER_ELEMENT))
@@ -387,10 +378,10 @@ class StructBuilder<T extends object> {
     const read = (v: View, off: number) => {
       const struct = {} as Target;
       this.fields.forEach(([[name, accessor], fieldOff]) => struct[name as keyof T] = accessor.read(v, off + fieldOff));
-      return struct;
+      return struct as Immutable<Target>;
     }
     const view = (v: View, off: number) => {
-      return new Proxy({ raw: v.raw(off, size) } as Target, {
+      return new Proxy({ raw: v.raw(off, size) } as Mutable<Target>, {
         ownKeys: target => {
           const keys = Reflect.ownKeys(target);
           for (const name of fieldsMap.keys()) {
@@ -443,11 +434,11 @@ export function asRaw(obj: any): Uint8Array | undefined {
   return (obj as any).raw
 }
 
-export function isViewable<T extends TypedView<T>>(off: number, ctr: AtomicArrayConstructor<T>): boolean {
+export function isViewable<T extends TypedArray>(off: number, ctr: TypedArrayConstructor<T>): boolean {
   return off % ctr.BYTES_PER_ELEMENT === 0;
 }
 
-export function tryToViewOrCopy<T extends TypedView<T>>(arr: TypedArray, ctr: AtomicArrayConstructor<T>): T {
+export function tryToViewOrCopy<T extends TypedArray>(arr: TypedArray, ctr: TypedArrayConstructor<T>): T {
   return isViewable(arr.byteOffset, ctr)
     ? new ctr(arr.buffer, arr.byteOffset, arr.byteLength / ctr.BYTES_PER_ELEMENT)
     : new ctr(arr.slice().buffer, 0, arr.byteLength / ctr.BYTES_PER_ELEMENT);
